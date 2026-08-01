@@ -44,11 +44,11 @@ export function Receipt({
   extra,
 }: {
   data: ReceiptData;
-  header?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  footer?: string | null;
-  extra?: string | null;
+  header?: string | null | undefined;
+  address?: string | null | undefined;
+  phone?: string | null | undefined;
+  footer?: string | null | undefined;
+  extra?: string | null | undefined;
 }) {
   const stamp =
     data.status === "paid"
