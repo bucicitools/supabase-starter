@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedKasirRouteImport } from './routes/_authenticated/kasir'
+import { Route as AuthenticatedModalRouteImport } from './routes/_authenticated/modal'
 import { Route as AuthenticatedStokRouteImport } from './routes/_authenticated/stok'
 
 const IndexRoute = IndexRouteImport.update({
@@ -40,6 +41,11 @@ const AuthenticatedKasirRoute = AuthenticatedKasirRouteImport.update({
   path: '/kasir',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedModalRoute = AuthenticatedModalRouteImport.update({
+  id: '/modal',
+  path: '/modal',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedStokRoute = AuthenticatedStokRouteImport.update({
   id: '/stok',
   path: '/stok',
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
   '/kasir': typeof AuthenticatedKasirRoute
+  '/modal': typeof AuthenticatedModalRoute
   '/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRoutesByTo {
@@ -58,6 +65,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
   '/kasir': typeof AuthenticatedKasirRoute
+  '/modal': typeof AuthenticatedModalRoute
   '/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRoutesById {
@@ -67,13 +75,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/kasir': typeof AuthenticatedKasirRoute
+  '/_authenticated/modal': typeof AuthenticatedModalRoute
   '/_authenticated/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/home' | '/kasir' | '/stok'
+  fullPaths: '/' | '/auth' | '/home' | '/kasir' | '/modal' | '/stok'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/home' | '/kasir' | '/stok'
+  to: '/' | '/auth' | '/home' | '/kasir' | '/modal' | '/stok'
   id:
     | '__root__'
     | '/'
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/home'
     | '/_authenticated/kasir'
+    | '/_authenticated/modal'
     | '/_authenticated/stok'
   fileRoutesById: FileRoutesById
 }
@@ -127,6 +137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKasirRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/modal': {
+      id: '/_authenticated/modal'
+      path: '/modal'
+      fullPath: '/modal'
+      preLoaderRoute: typeof AuthenticatedModalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/stok': {
       id: '/_authenticated/stok'
       path: '/stok'
@@ -140,12 +157,14 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedKasirRoute: typeof AuthenticatedKasirRoute
+  AuthenticatedModalRoute: typeof AuthenticatedModalRoute
   AuthenticatedStokRoute: typeof AuthenticatedStokRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedKasirRoute: AuthenticatedKasirRoute,
+  AuthenticatedModalRoute: AuthenticatedModalRoute,
   AuthenticatedStokRoute: AuthenticatedStokRoute,
 }
 
