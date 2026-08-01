@@ -17,7 +17,6 @@ import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/h
 import { Route as AuthenticatedHppRouteImport } from './routes/_authenticated/hpp'
 import { Route as AuthenticatedInfoRouteImport } from './routes/_authenticated/info'
 import { Route as AuthenticatedKasirRouteImport } from './routes/_authenticated/kasir'
-import { Route as AuthenticatedModalRouteImport } from './routes/_authenticated/modal'
 import { Route as AuthenticatedPengaturanRouteImport } from './routes/_authenticated/pengaturan'
 import { Route as AuthenticatedPromptRouteImport } from './routes/_authenticated/prompt'
 import { Route as AuthenticatedStokRouteImport } from './routes/_authenticated/stok'
@@ -61,11 +60,6 @@ const AuthenticatedKasirRoute = AuthenticatedKasirRouteImport.update({
   path: '/kasir',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedModalRoute = AuthenticatedModalRouteImport.update({
-  id: '/modal',
-  path: '/modal',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 const AuthenticatedPengaturanRoute = AuthenticatedPengaturanRouteImport.update({
   id: '/pengaturan',
   path: '/pengaturan',
@@ -90,7 +84,6 @@ export interface FileRoutesByFullPath {
   '/hpp': typeof AuthenticatedHppRoute
   '/info': typeof AuthenticatedInfoRoute
   '/kasir': typeof AuthenticatedKasirRoute
-  '/modal': typeof AuthenticatedModalRoute
   '/pengaturan': typeof AuthenticatedPengaturanRoute
   '/prompt': typeof AuthenticatedPromptRoute
   '/stok': typeof AuthenticatedStokRoute
@@ -103,7 +96,6 @@ export interface FileRoutesByTo {
   '/hpp': typeof AuthenticatedHppRoute
   '/info': typeof AuthenticatedInfoRoute
   '/kasir': typeof AuthenticatedKasirRoute
-  '/modal': typeof AuthenticatedModalRoute
   '/pengaturan': typeof AuthenticatedPengaturanRoute
   '/prompt': typeof AuthenticatedPromptRoute
   '/stok': typeof AuthenticatedStokRoute
@@ -118,7 +110,6 @@ export interface FileRoutesById {
   '/_authenticated/hpp': typeof AuthenticatedHppRoute
   '/_authenticated/info': typeof AuthenticatedInfoRoute
   '/_authenticated/kasir': typeof AuthenticatedKasirRoute
-  '/_authenticated/modal': typeof AuthenticatedModalRoute
   '/_authenticated/pengaturan': typeof AuthenticatedPengaturanRoute
   '/_authenticated/prompt': typeof AuthenticatedPromptRoute
   '/_authenticated/stok': typeof AuthenticatedStokRoute
@@ -133,7 +124,6 @@ export interface FileRouteTypes {
     | '/hpp'
     | '/info'
     | '/kasir'
-    | '/modal'
     | '/pengaturan'
     | '/prompt'
     | '/stok'
@@ -146,7 +136,6 @@ export interface FileRouteTypes {
     | '/hpp'
     | '/info'
     | '/kasir'
-    | '/modal'
     | '/pengaturan'
     | '/prompt'
     | '/stok'
@@ -160,7 +149,6 @@ export interface FileRouteTypes {
     | '/_authenticated/hpp'
     | '/_authenticated/info'
     | '/_authenticated/kasir'
-    | '/_authenticated/modal'
     | '/_authenticated/pengaturan'
     | '/_authenticated/prompt'
     | '/_authenticated/stok'
@@ -230,13 +218,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedKasirRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/modal': {
-      id: '/_authenticated/modal'
-      path: '/modal'
-      fullPath: '/modal'
-      preLoaderRoute: typeof AuthenticatedModalRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/pengaturan': {
       id: '/_authenticated/pengaturan'
       path: '/pengaturan'
@@ -267,7 +248,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHppRoute: typeof AuthenticatedHppRoute
   AuthenticatedInfoRoute: typeof AuthenticatedInfoRoute
   AuthenticatedKasirRoute: typeof AuthenticatedKasirRoute
-  AuthenticatedModalRoute: typeof AuthenticatedModalRoute
   AuthenticatedPengaturanRoute: typeof AuthenticatedPengaturanRoute
   AuthenticatedPromptRoute: typeof AuthenticatedPromptRoute
   AuthenticatedStokRoute: typeof AuthenticatedStokRoute
@@ -279,7 +259,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHppRoute: AuthenticatedHppRoute,
   AuthenticatedInfoRoute: AuthenticatedInfoRoute,
   AuthenticatedKasirRoute: AuthenticatedKasirRoute,
-  AuthenticatedModalRoute: AuthenticatedModalRoute,
   AuthenticatedPengaturanRoute: AuthenticatedPengaturanRoute,
   AuthenticatedPromptRoute: AuthenticatedPromptRoute,
   AuthenticatedStokRoute: AuthenticatedStokRoute,
