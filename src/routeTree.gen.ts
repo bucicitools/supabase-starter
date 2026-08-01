@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedHppRouteImport } from './routes/_authenticated/hpp'
+import { Route as AuthenticatedInfoRouteImport } from './routes/_authenticated/info'
 import { Route as AuthenticatedKasirRouteImport } from './routes/_authenticated/kasir'
 import { Route as AuthenticatedModalRouteImport } from './routes/_authenticated/modal'
 import { Route as AuthenticatedPromptRouteImport } from './routes/_authenticated/prompt'
@@ -43,6 +44,11 @@ const AuthenticatedHppRoute = AuthenticatedHppRouteImport.update({
   path: '/hpp',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedInfoRoute = AuthenticatedInfoRouteImport.update({
+  id: '/info',
+  path: '/info',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedKasirRoute = AuthenticatedKasirRouteImport.update({
   id: '/kasir',
   path: '/kasir',
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
   '/hpp': typeof AuthenticatedHppRoute
+  '/info': typeof AuthenticatedInfoRoute
   '/kasir': typeof AuthenticatedKasirRoute
   '/modal': typeof AuthenticatedModalRoute
   '/prompt': typeof AuthenticatedPromptRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/home': typeof AuthenticatedHomeRoute
   '/hpp': typeof AuthenticatedHppRoute
+  '/info': typeof AuthenticatedInfoRoute
   '/kasir': typeof AuthenticatedKasirRoute
   '/modal': typeof AuthenticatedModalRoute
   '/prompt': typeof AuthenticatedPromptRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/hpp': typeof AuthenticatedHppRoute
+  '/_authenticated/info': typeof AuthenticatedInfoRoute
   '/_authenticated/kasir': typeof AuthenticatedKasirRoute
   '/_authenticated/modal': typeof AuthenticatedModalRoute
   '/_authenticated/prompt': typeof AuthenticatedPromptRoute
@@ -99,10 +108,26 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/home' | '/hpp' | '/kasir' | '/modal' | '/prompt' | '/stok'
+    | '/'
+    | '/auth'
+    | '/home'
+    | '/hpp'
+    | '/info'
+    | '/kasir'
+    | '/modal'
+    | '/prompt'
+    | '/stok'
   fileRoutesByTo: FileRoutesByTo
   to:
-    '/' | '/auth' | '/home' | '/hpp' | '/kasir' | '/modal' | '/prompt' | '/stok'
+    | '/'
+    | '/auth'
+    | '/home'
+    | '/hpp'
+    | '/info'
+    | '/kasir'
+    | '/modal'
+    | '/prompt'
+    | '/stok'
   id:
     | '__root__'
     | '/'
@@ -110,6 +135,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/home'
     | '/_authenticated/hpp'
+    | '/_authenticated/info'
     | '/_authenticated/kasir'
     | '/_authenticated/modal'
     | '/_authenticated/prompt'
@@ -159,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/info': {
+      id: '/_authenticated/info'
+      path: '/info'
+      fullPath: '/info'
+      preLoaderRoute: typeof AuthenticatedInfoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/kasir': {
       id: '/_authenticated/kasir'
       path: '/kasir'
@@ -193,6 +226,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
   AuthenticatedHppRoute: typeof AuthenticatedHppRoute
+  AuthenticatedInfoRoute: typeof AuthenticatedInfoRoute
   AuthenticatedKasirRoute: typeof AuthenticatedKasirRoute
   AuthenticatedModalRoute: typeof AuthenticatedModalRoute
   AuthenticatedPromptRoute: typeof AuthenticatedPromptRoute
@@ -202,6 +236,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
   AuthenticatedHppRoute: AuthenticatedHppRoute,
+  AuthenticatedInfoRoute: AuthenticatedInfoRoute,
   AuthenticatedKasirRoute: AuthenticatedKasirRoute,
   AuthenticatedModalRoute: AuthenticatedModalRoute,
   AuthenticatedPromptRoute: AuthenticatedPromptRoute,
