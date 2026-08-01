@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
-import { rupiah } from "@/lib/format";
+import { dec, parseNum, rupiah } from "@/lib/format";
 import { suggestPricing } from "@/lib/ai.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,13 @@ export const Route = createFileRoute("/_authenticated/hpp")({
   component: HppPage,
 });
 
-type Ing = { name: string; qty: string; unit: string; price: string };
+type Ing = { name: string; buyPrice: string; buyQty: string; useQty: string; unit: string };
+
+function ingCost(i: Ing) {
+  const buyQty = parseNum(i.buyQty);
+  if (!buyQty) return 0;
+  return (parseNum(i.buyPrice) * parseNum(i.useQty)) / buyQty;
+}
 
 function HppPage() {
   const { tenant } = useAuth();
@@ -35,9 +41,7 @@ function HppPage() {
 
   const [productName, setProductName] = useState("");
   const [yieldQty, setYieldQty] = useState("1");
-  const [overhead, setOverhead] = useState("0");
-  const [labor, setLabor] = useState("0");
-  const [ings, setIngs] = useState<Ing[]>([{ name: "", qty: "", unit: "gr", price: "" }]);
+  const [ings, setIngs] = useState<Ing[]>([{ name: "", buyPrice: "", buyQty: "", useQty: "", unit: "gr" }]);
   const [advice, setAdvice] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -54,9 +58,8 @@ function HppPage() {
     },
   });
 
-  const bahanTotal = ings.reduce((s, i) => s + Number(i.price || 0), 0);
-  const totalCost = bahanTotal + Number(overhead || 0) + Number(labor || 0);
-  const yieldNum = Math.max(1, Number(yieldQty || 1));
+  const totalCost = ings.reduce((s, i) => s + ingCost(i), 0);
+  const yieldNum = Math.max(0.0001, parseNum(yieldQty) || 1);
   const hpp = Math.round(totalCost / yieldNum);
 
   async function save() {
@@ -69,8 +72,8 @@ function HppPage() {
       product_name: productName.trim(),
       yield_qty: yieldNum,
       ingredients: ings,
-      overhead: Number(overhead || 0),
-      labor: Number(labor || 0),
+      overhead: 0,
+      labor: 0,
       hpp,
       suggested_price: Math.ceil((hpp * 1.4) / 500) * 500,
     });
@@ -89,7 +92,9 @@ function HppPage() {
       data: {
         productName: productName.trim() || "Produk",
         hpp,
-        ingredients: ings.map((i) => `${i.name} ${i.qty}${i.unit} = Rp${i.price}`).join("; "),
+        ingredients: ings
+          .map((i) => `${i.name}: beli Rp${parseNum(i.buyPrice)} per ${i.buyQty}${i.unit}, dipakai ${i.useQty}${i.unit} = Rp${Math.round(ingCost(i))}`)
+          .join("; "),
         market: tenant?.business_name ?? "",
       },
     });
@@ -115,59 +120,82 @@ function HppPage() {
           </div>
         </div>
 
-        <p className="pt-2 text-sm font-semibold">Rincian bahan</p>
+        <p className="pt-2 text-sm font-semibold">Rincian bahan (murni harga bahan)</p>
+        <p className="-mt-2 text-xs text-muted-foreground">
+          Contoh: garam beli Rp3.000 dapat 250 gr, dipakai 10 gr. Atau ayam Rp32.000 per 1 ekor, dipakai 1/9 ekor.
+          Kolom angka mendukung desimal (2,5) dan pecahan (1/9, 2/3, 1 1/2).
+        </p>
         {ings.map((ing, i) => (
-          <div key={i} className="grid grid-cols-[1.4fr_0.7fr_0.6fr_1fr_auto] items-end gap-1.5">
-            <Input
-              placeholder="Bahan"
-              value={ing.name}
-              onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, name: e.target.value } : x)))}
-            />
-            <Input
-              placeholder="Qty"
-              inputMode="numeric"
-              value={ing.qty}
-              onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, qty: e.target.value } : x)))}
-            />
-            <Input
-              placeholder="Sat"
-              value={ing.unit}
-              onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, unit: e.target.value } : x)))}
-            />
-            <Input
-              placeholder="Harga"
-              inputMode="numeric"
-              value={ing.price}
-              onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, price: e.target.value } : x)))}
-            />
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-destructive"
-              onClick={() => setIngs(ings.filter((_, j) => j !== i))}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          <div key={i} className="space-y-1.5 rounded-xl border border-border/70 p-3">
+            <div className="flex gap-1.5">
+              <Input
+                placeholder="Nama bahan"
+                value={ing.name}
+                onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, name: e.target.value } : x)))}
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="shrink-0 text-destructive"
+                onClick={() => setIngs(ings.filter((_, j) => j !== i))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              <div className="space-y-1">
+                <Label className="text-[11px]">Harga beli</Label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="3000"
+                  value={ing.buyPrice}
+                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, buyPrice: e.target.value } : x)))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px]">Dapat (jumlah)</Label>
+                <Input
+                  inputMode="decimal"
+                  placeholder="250"
+                  value={ing.buyQty}
+                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, buyQty: e.target.value } : x)))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px]">Pemakaian</Label>
+                <Input
+                  inputMode="text"
+                  placeholder="10 atau 1/9"
+                  value={ing.useQty}
+                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, useQty: e.target.value } : x)))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px]">Satuan</Label>
+                <Input
+                  placeholder="gr / ekor"
+                  value={ing.unit}
+                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, unit: e.target.value } : x)))}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Pemakaian {dec(parseNum(ing.useQty), 4)} {ing.unit} ={" "}
+              <span className="font-semibold text-primary">{rupiah(Math.round(ingCost(ing)))}</span>
+            </p>
           </div>
         ))}
-        <Button variant="outline" size="sm" onClick={() => setIngs([...ings, { name: "", qty: "", unit: "gr", price: "" }])}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIngs([...ings, { name: "", buyPrice: "", buyQty: "", useQty: "", unit: "gr" }])}
+        >
           <Plus className="mr-2 h-4 w-4" /> Tambah bahan
         </Button>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label className="text-xs">Biaya operasional (gas, listrik, kemasan)</Label>
-            <Input value={overhead} onChange={(e) => setOverhead(e.target.value)} inputMode="numeric" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Upah tenaga kerja</Label>
-            <Input value={labor} onChange={(e) => setLabor(e.target.value)} inputMode="numeric" />
-          </div>
-        </div>
-
         <div className="rounded-xl bg-muted p-3 text-sm">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">Total biaya</span>
+            <span className="text-muted-foreground">Total biaya bahan</span>
             <span className="font-medium">{rupiah(totalCost)}</span>
           </div>
           <div className="flex justify-between text-base font-bold">
