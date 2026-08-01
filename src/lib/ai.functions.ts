@@ -95,7 +95,7 @@ export const generateCreativePrompt = createServerFn({ method: "POST" })
     const system = `Kamu adalah art director & prompt engineer profesional untuk foto produk komersial.
 Keluarkan HANYA JSON valid tanpa markdown fence dengan bentuk:
 {"prompt":"...","negative_prompt":"...","caption_instagram":"...","caption_facebook":"...","hashtags":"..."}
-- "prompt": bahasa Inggris, sangat detail (subjek, komposisi, lighting, lensa, material, background, mood, penempatan teks judul/tagline/harga/CTA, rasio & resolusi), siap ditempel ke ChatGPT/Gemini/Midjourney. Minimal 120 kata.
+- "prompt": WAJIB diawali kalimat instruksi bahasa Inggris untuk EDIT foto produk yang diunggah user, persis seperti ini di baris pertama: "Using the attached product photo as the exact reference, edit and enhance this image WITHOUT changing the product itself — keep the product's shape, color, texture, label, branding and proportions 100% identical to the reference photo. Do not invent or replace the product." Setelah kalimat itu, lanjutkan deskripsi bahasa Inggris, sangat detail (subjek, komposisi, lighting, lensa, material, background, mood, penempatan teks judul/tagline/harga/CTA, rasio & resolusi), siap ditempel ke ChatGPT/Gemini/Midjourney. Minimal 120 kata. Akhiri "prompt" dengan penegasan: "Product identity must remain persistent and unchanged from the attached reference image."
 - caption: bahasa Indonesia, persuasif, pakai emoji secukupnya.
 - hashtags: 12-18 hashtag relevan dipisah spasi.`;
     const user = `Jenis produk: ${data.category}
