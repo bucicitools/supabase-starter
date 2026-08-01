@@ -192,6 +192,25 @@
   }
 }
 
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+  .print-area {
+    position: fixed !important;
+    inset: 0 auto auto 0 !important;
+    width: 80mm !important;
+    padding: 4mm !important;
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+  }
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/stok")({
   head: () => ({
@@ -29,7 +30,8 @@ function StokPage() {
   const qc = useQueryClient();
   const tenantId = tenant?.id;
 
-  const [p, setP] = useState({ name: "", price: "", cost: "", stock: "", sku: "", low: "5" });
+  const [p, setP] = useState({ name: "", price: "", cost: "", stock: "", sku: "", low: "5", categoryId: "none" });
+  const [newCat, setNewCat] = useState("");
   const [it, setIt] = useState({ name: "", kind: "bahan", unit: "pcs", qty: "", min: "", cost: "", supplier: "" });
 
   const { data: products = [] } = useQuery({
@@ -40,6 +42,27 @@ function StokPage() {
       return data ?? [];
     },
   });
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories", tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data } = await supabase.from("categories").select("*").eq("tenant_id", tenantId!).order("name");
+      return data ?? [];
+    },
+  });
+
+  async function addCategory() {
+    if (!tenantId || !newCat.trim()) return;
+    const { error } = await supabase.from("categories").insert({ tenant_id: tenantId, name: newCat.trim() });
+    if (error) {
+      toast.error("Gagal menambah kategori", { description: error.message });
+      return;
+    }
+    setNewCat("");
+    void qc.invalidateQueries({ queryKey: ["categories", tenantId] });
+    toast.success("Kategori ditambahkan");
+  }
 
   const { data: items = [] } = useQuery({
     queryKey: ["stock_items", tenantId],
@@ -63,12 +86,13 @@ function StokPage() {
       stock: Number(p.stock || 0),
       sku: p.sku.trim() || null,
       low_stock_threshold: Number(p.low || 0),
+      category_id: p.categoryId === "none" ? null : p.categoryId,
     });
     if (error) {
       toast.error("Gagal menyimpan", { description: error.message });
       return;
     }
-    setP({ name: "", price: "", cost: "", stock: "", sku: "", low: "5" });
+    setP({ name: "", price: "", cost: "", stock: "", sku: "", low: "5", categoryId: "none" });
     void qc.invalidateQueries({ queryKey: ["products", tenantId] });
     toast.success("Produk ditambahkan");
   }
@@ -131,6 +155,31 @@ function StokPage() {
             <Field label="Stok" value={p.stock} onChange={(v) => setP({ ...p, stock: v })} numeric />
             <Field label="SKU" value={p.sku} onChange={(v) => setP({ ...p, sku: v })} />
             <Field label="Batas stok menipis" value={p.low} onChange={(v) => setP({ ...p, low: v })} numeric />
+            <div className="space-y-1">
+              <Label className="text-xs">Kategori</Label>
+              <Select value={p.categoryId} onValueChange={(v) => setP({ ...p, categoryId: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih kategori" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Tanpa kategori</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1 sm:col-span-2">
+              <Label className="text-xs">Kategori baru</Label>
+              <div className="flex gap-2">
+                <Input value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="Mis. Minuman" />
+                <Button variant="outline" onClick={() => void addCategory()}>
+                  Tambah
+                </Button>
+              </div>
+            </div>
             <Button onClick={() => void addProduct()} className="sm:col-span-3">
               <Plus className="mr-2 h-4 w-4" /> Tambah Produk
             </Button>
@@ -147,6 +196,7 @@ function StokPage() {
                   modal: x.cost,
                   stok: x.stock,
                   sku: x.sku ?? "",
+                  kategori: categories.find((c) => c.id === x.category_id)?.name ?? "",
                 })),
               )
             }
@@ -207,6 +257,26 @@ function StokPage() {
               <Plus className="mr-2 h-4 w-4" /> Tambah Bahan
             </Button>
           </div>
+
+          <Button
+            variant="outline"
+            onClick={() =>
+              downloadCSV(
+                "bahan-alat-bucici.csv",
+                items.map((x) => ({
+                  nama: x.name,
+                  jenis: x.kind,
+                  satuan: x.unit,
+                  jumlah: x.qty,
+                  minimum: x.min_qty,
+                  harga_satuan: x.unit_cost,
+                  pemasok: x.supplier ?? "",
+                })),
+              )
+            }
+          >
+            <Download className="mr-2 h-4 w-4" /> Unduh CSV
+          </Button>
 
           <div className="space-y-2">
             {items.map((x) => {

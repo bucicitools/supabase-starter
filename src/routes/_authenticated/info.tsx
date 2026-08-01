@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { AIChat } from "@/components/AIChat";
 import { dateID } from "@/lib/format";
+import { youtubeEmbed } from "@/lib/format";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authenticated/info")({
@@ -48,12 +49,25 @@ function InfoPage() {
         </TabsContent>
         <TabsContent value="kabar" className="mt-4 space-y-3">
           {posts.length === 0 && <p className="text-sm text-muted-foreground">Belum ada kabar terbaru.</p>}
-          {posts.map((p) => (
+          {posts.map((p) => {
+            const embed = youtubeEmbed(p.link);
+            return (
             <article key={p.id} className="rounded-2xl border border-border bg-card p-4 shadow-soft">
               <h2 className="font-bold">{p.title}</h2>
               <p className="text-xs text-muted-foreground">{dateID(p.created_at)}</p>
               <p className="mt-2 whitespace-pre-wrap text-sm">{p.content}</p>
-              {p.link && (
+              {embed && (
+                <div className="mt-3 aspect-video w-full overflow-hidden rounded-xl border border-border">
+                  <iframe
+                    src={embed}
+                    title={p.title}
+                    className="h-full w-full"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                </div>
+              )}
+              {p.link && !embed && (
                 <a
                   href={p.link}
                   target="_blank"
@@ -64,7 +78,8 @@ function InfoPage() {
                 </a>
               )}
             </article>
-          ))}
+            );
+          })}
         </TabsContent>
       </Tabs>
     </AppShell>
