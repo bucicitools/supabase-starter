@@ -64,7 +64,10 @@ function StokPage() {
       sku: p.sku.trim() || null,
       low_stock_threshold: Number(p.low || 0),
     });
-    if (error) return toast.error("Gagal menyimpan", { description: error.message });
+    if (error) {
+      toast.error("Gagal menyimpan", { description: error.message });
+      return;
+    }
     setP({ name: "", price: "", cost: "", stock: "", sku: "", low: "5" });
     void qc.invalidateQueries({ queryKey: ["products", tenantId] });
     toast.success("Produk ditambahkan");
@@ -85,7 +88,10 @@ function StokPage() {
       unit_cost: Number(it.cost || 0),
       supplier: it.supplier.trim() || null,
     });
-    if (error) return toast.error("Gagal menyimpan", { description: error.message });
+    if (error) {
+      toast.error("Gagal menyimpan", { description: error.message });
+      return;
+    }
     setIt({ name: "", kind: "bahan", unit: "pcs", qty: "", min: "", cost: "", supplier: "" });
     void qc.invalidateQueries({ queryKey: ["stock_items", tenantId] });
     toast.success("Bahan ditambahkan");
