@@ -10,33 +10,166 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
+import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
+import { Route as AuthenticatedHppRouteImport } from './routes/_authenticated/hpp'
+import { Route as AuthenticatedInfoRouteImport } from './routes/_authenticated/info'
+import { Route as AuthenticatedKasirRouteImport } from './routes/_authenticated/kasir'
+import { Route as AuthenticatedModalRouteImport } from './routes/_authenticated/modal'
+import { Route as AuthenticatedPengaturanRouteImport } from './routes/_authenticated/pengaturan'
+import { Route as AuthenticatedPromptRouteImport } from './routes/_authenticated/prompt'
+import { Route as AuthenticatedStokRouteImport } from './routes/_authenticated/stok'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHppRoute = AuthenticatedHppRouteImport.update({
+  id: '/hpp',
+  path: '/hpp',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedInfoRoute = AuthenticatedInfoRouteImport.update({
+  id: '/info',
+  path: '/info',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedKasirRoute = AuthenticatedKasirRouteImport.update({
+  id: '/kasir',
+  path: '/kasir',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedModalRoute = AuthenticatedModalRouteImport.update({
+  id: '/modal',
+  path: '/modal',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPengaturanRoute = AuthenticatedPengaturanRouteImport.update({
+  id: '/pengaturan',
+  path: '/pengaturan',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPromptRoute = AuthenticatedPromptRouteImport.update({
+  id: '/prompt',
+  path: '/prompt',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedStokRoute = AuthenticatedStokRouteImport.update({
+  id: '/stok',
+  path: '/stok',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/hpp': typeof AuthenticatedHppRoute
+  '/info': typeof AuthenticatedInfoRoute
+  '/kasir': typeof AuthenticatedKasirRoute
+  '/modal': typeof AuthenticatedModalRoute
+  '/pengaturan': typeof AuthenticatedPengaturanRoute
+  '/prompt': typeof AuthenticatedPromptRoute
+  '/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/admin': typeof AuthenticatedAdminRoute
+  '/home': typeof AuthenticatedHomeRoute
+  '/hpp': typeof AuthenticatedHppRoute
+  '/info': typeof AuthenticatedInfoRoute
+  '/kasir': typeof AuthenticatedKasirRoute
+  '/modal': typeof AuthenticatedModalRoute
+  '/pengaturan': typeof AuthenticatedPengaturanRoute
+  '/prompt': typeof AuthenticatedPromptRoute
+  '/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
+  '/_authenticated/home': typeof AuthenticatedHomeRoute
+  '/_authenticated/hpp': typeof AuthenticatedHppRoute
+  '/_authenticated/info': typeof AuthenticatedInfoRoute
+  '/_authenticated/kasir': typeof AuthenticatedKasirRoute
+  '/_authenticated/modal': typeof AuthenticatedModalRoute
+  '/_authenticated/pengaturan': typeof AuthenticatedPengaturanRoute
+  '/_authenticated/prompt': typeof AuthenticatedPromptRoute
+  '/_authenticated/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/admin'
+    | '/home'
+    | '/hpp'
+    | '/info'
+    | '/kasir'
+    | '/modal'
+    | '/pengaturan'
+    | '/prompt'
+    | '/stok'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/admin'
+    | '/home'
+    | '/hpp'
+    | '/info'
+    | '/kasir'
+    | '/modal'
+    | '/pengaturan'
+    | '/prompt'
+    | '/stok'
+  id:
+    | '__root__'
+    | '/'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/admin'
+    | '/_authenticated/home'
+    | '/_authenticated/hpp'
+    | '/_authenticated/info'
+    | '/_authenticated/kasir'
+    | '/_authenticated/modal'
+    | '/_authenticated/pengaturan'
+    | '/_authenticated/prompt'
+    | '/_authenticated/stok'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,22 +181,118 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/home': {
+      id: '/_authenticated/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AuthenticatedHomeRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/hpp': {
+      id: '/_authenticated/hpp'
+      path: '/hpp'
+      fullPath: '/hpp'
+      preLoaderRoute: typeof AuthenticatedHppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/info': {
+      id: '/_authenticated/info'
+      path: '/info'
+      fullPath: '/info'
+      preLoaderRoute: typeof AuthenticatedInfoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/kasir': {
+      id: '/_authenticated/kasir'
+      path: '/kasir'
+      fullPath: '/kasir'
+      preLoaderRoute: typeof AuthenticatedKasirRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/modal': {
+      id: '/_authenticated/modal'
+      path: '/modal'
+      fullPath: '/modal'
+      preLoaderRoute: typeof AuthenticatedModalRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pengaturan': {
+      id: '/_authenticated/pengaturan'
+      path: '/pengaturan'
+      fullPath: '/pengaturan'
+      preLoaderRoute: typeof AuthenticatedPengaturanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/prompt': {
+      id: '/_authenticated/prompt'
+      path: '/prompt'
+      fullPath: '/prompt'
+      preLoaderRoute: typeof AuthenticatedPromptRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/stok': {
+      id: '/_authenticated/stok'
+      path: '/stok'
+      fullPath: '/stok'
+      preLoaderRoute: typeof AuthenticatedStokRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
+  AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
+  AuthenticatedHppRoute: typeof AuthenticatedHppRoute
+  AuthenticatedInfoRoute: typeof AuthenticatedInfoRoute
+  AuthenticatedKasirRoute: typeof AuthenticatedKasirRoute
+  AuthenticatedModalRoute: typeof AuthenticatedModalRoute
+  AuthenticatedPengaturanRoute: typeof AuthenticatedPengaturanRoute
+  AuthenticatedPromptRoute: typeof AuthenticatedPromptRoute
+  AuthenticatedStokRoute: typeof AuthenticatedStokRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
+  AuthenticatedHomeRoute: AuthenticatedHomeRoute,
+  AuthenticatedHppRoute: AuthenticatedHppRoute,
+  AuthenticatedInfoRoute: AuthenticatedInfoRoute,
+  AuthenticatedKasirRoute: AuthenticatedKasirRoute,
+  AuthenticatedModalRoute: AuthenticatedModalRoute,
+  AuthenticatedPengaturanRoute: AuthenticatedPengaturanRoute,
+  AuthenticatedPromptRoute: AuthenticatedPromptRoute,
+  AuthenticatedStokRoute: AuthenticatedStokRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

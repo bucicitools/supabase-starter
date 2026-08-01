@@ -1,0 +1,17 @@
+{
+  "name": "BUCICI — Simple Business Buddy",
+  "short_name": "BUCICI",
+  "description": "Aplikasi kasir, stok, HPP, dan kreasi prompt untuk usaha kecil.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b57f0",
+  "theme_color": "#0b57f0",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
