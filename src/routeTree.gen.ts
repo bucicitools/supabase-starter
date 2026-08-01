@@ -16,6 +16,7 @@ import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/h
 import { Route as AuthenticatedHppRouteImport } from './routes/_authenticated/hpp'
 import { Route as AuthenticatedKasirRouteImport } from './routes/_authenticated/kasir'
 import { Route as AuthenticatedModalRouteImport } from './routes/_authenticated/modal'
+import { Route as AuthenticatedPromptRouteImport } from './routes/_authenticated/prompt'
 import { Route as AuthenticatedStokRouteImport } from './routes/_authenticated/stok'
 
 const IndexRoute = IndexRouteImport.update({
@@ -52,6 +53,11 @@ const AuthenticatedModalRoute = AuthenticatedModalRouteImport.update({
   path: '/modal',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPromptRoute = AuthenticatedPromptRouteImport.update({
+  id: '/prompt',
+  path: '/prompt',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedStokRoute = AuthenticatedStokRouteImport.update({
   id: '/stok',
   path: '/stok',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/hpp': typeof AuthenticatedHppRoute
   '/kasir': typeof AuthenticatedKasirRoute
   '/modal': typeof AuthenticatedModalRoute
+  '/prompt': typeof AuthenticatedPromptRoute
   '/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRoutesByTo {
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/hpp': typeof AuthenticatedHppRoute
   '/kasir': typeof AuthenticatedKasirRoute
   '/modal': typeof AuthenticatedModalRoute
+  '/prompt': typeof AuthenticatedPromptRoute
   '/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRoutesById {
@@ -85,13 +93,16 @@ export interface FileRoutesById {
   '/_authenticated/hpp': typeof AuthenticatedHppRoute
   '/_authenticated/kasir': typeof AuthenticatedKasirRoute
   '/_authenticated/modal': typeof AuthenticatedModalRoute
+  '/_authenticated/prompt': typeof AuthenticatedPromptRoute
   '/_authenticated/stok': typeof AuthenticatedStokRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/home' | '/hpp' | '/kasir' | '/modal' | '/stok'
+  fullPaths:
+    '/' | '/auth' | '/home' | '/hpp' | '/kasir' | '/modal' | '/prompt' | '/stok'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/home' | '/hpp' | '/kasir' | '/modal' | '/stok'
+  to:
+    '/' | '/auth' | '/home' | '/hpp' | '/kasir' | '/modal' | '/prompt' | '/stok'
   id:
     | '__root__'
     | '/'
@@ -101,6 +112,7 @@ export interface FileRouteTypes {
     | '/_authenticated/hpp'
     | '/_authenticated/kasir'
     | '/_authenticated/modal'
+    | '/_authenticated/prompt'
     | '/_authenticated/stok'
   fileRoutesById: FileRoutesById
 }
@@ -161,6 +173,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedModalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/prompt': {
+      id: '/_authenticated/prompt'
+      path: '/prompt'
+      fullPath: '/prompt'
+      preLoaderRoute: typeof AuthenticatedPromptRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/stok': {
       id: '/_authenticated/stok'
       path: '/stok'
@@ -176,6 +195,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedHppRoute: typeof AuthenticatedHppRoute
   AuthenticatedKasirRoute: typeof AuthenticatedKasirRoute
   AuthenticatedModalRoute: typeof AuthenticatedModalRoute
+  AuthenticatedPromptRoute: typeof AuthenticatedPromptRoute
   AuthenticatedStokRoute: typeof AuthenticatedStokRoute
 }
 
@@ -184,6 +204,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHppRoute: AuthenticatedHppRoute,
   AuthenticatedKasirRoute: AuthenticatedKasirRoute,
   AuthenticatedModalRoute: AuthenticatedModalRoute,
+  AuthenticatedPromptRoute: AuthenticatedPromptRoute,
   AuthenticatedStokRoute: AuthenticatedStokRoute,
 }
 
