@@ -207,7 +207,10 @@ function SettingsPage() {
                         className="text-destructive"
                         onClick={async () => {
                           const res = await deleteMember({ data: { userId: m.id } });
-                          if (!res.ok) return toast.error(res.error);
+                          if (!res.ok) {
+                            toast.error(res.error);
+                            return;
+                          }
                           void qc.invalidateQueries({ queryKey: ["members", tenantId] });
                           toast.success("Anggota dihapus");
                         }}

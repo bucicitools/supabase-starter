@@ -17,6 +17,7 @@ import { Route as AuthenticatedHppRouteImport } from './routes/_authenticated/hp
 import { Route as AuthenticatedInfoRouteImport } from './routes/_authenticated/info'
 import { Route as AuthenticatedKasirRouteImport } from './routes/_authenticated/kasir'
 import { Route as AuthenticatedModalRouteImport } from './routes/_authenticated/modal'
+import { Route as AuthenticatedPengaturanRouteImport } from './routes/_authenticated/pengaturan'
 import { Route as AuthenticatedPromptRouteImport } from './routes/_authenticated/prompt'
 import { Route as AuthenticatedStokRouteImport } from './routes/_authenticated/stok'
 
@@ -59,6 +60,11 @@ const AuthenticatedModalRoute = AuthenticatedModalRouteImport.update({
   path: '/modal',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPengaturanRoute = AuthenticatedPengaturanRouteImport.update({
+  id: '/pengaturan',
+  path: '/pengaturan',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedPromptRoute = AuthenticatedPromptRouteImport.update({
   id: '/prompt',
   path: '/prompt',
@@ -78,6 +84,7 @@ export interface FileRoutesByFullPath {
   '/info': typeof AuthenticatedInfoRoute
   '/kasir': typeof AuthenticatedKasirRoute
   '/modal': typeof AuthenticatedModalRoute
+  '/pengaturan': typeof AuthenticatedPengaturanRoute
   '/prompt': typeof AuthenticatedPromptRoute
   '/stok': typeof AuthenticatedStokRoute
 }
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/info': typeof AuthenticatedInfoRoute
   '/kasir': typeof AuthenticatedKasirRoute
   '/modal': typeof AuthenticatedModalRoute
+  '/pengaturan': typeof AuthenticatedPengaturanRoute
   '/prompt': typeof AuthenticatedPromptRoute
   '/stok': typeof AuthenticatedStokRoute
 }
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/_authenticated/info': typeof AuthenticatedInfoRoute
   '/_authenticated/kasir': typeof AuthenticatedKasirRoute
   '/_authenticated/modal': typeof AuthenticatedModalRoute
+  '/_authenticated/pengaturan': typeof AuthenticatedPengaturanRoute
   '/_authenticated/prompt': typeof AuthenticatedPromptRoute
   '/_authenticated/stok': typeof AuthenticatedStokRoute
 }
@@ -115,6 +124,7 @@ export interface FileRouteTypes {
     | '/info'
     | '/kasir'
     | '/modal'
+    | '/pengaturan'
     | '/prompt'
     | '/stok'
   fileRoutesByTo: FileRoutesByTo
@@ -126,6 +136,7 @@ export interface FileRouteTypes {
     | '/info'
     | '/kasir'
     | '/modal'
+    | '/pengaturan'
     | '/prompt'
     | '/stok'
   id:
@@ -138,6 +149,7 @@ export interface FileRouteTypes {
     | '/_authenticated/info'
     | '/_authenticated/kasir'
     | '/_authenticated/modal'
+    | '/_authenticated/pengaturan'
     | '/_authenticated/prompt'
     | '/_authenticated/stok'
   fileRoutesById: FileRoutesById
@@ -206,6 +218,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedModalRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/pengaturan': {
+      id: '/_authenticated/pengaturan'
+      path: '/pengaturan'
+      fullPath: '/pengaturan'
+      preLoaderRoute: typeof AuthenticatedPengaturanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/prompt': {
       id: '/_authenticated/prompt'
       path: '/prompt'
@@ -229,6 +248,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInfoRoute: typeof AuthenticatedInfoRoute
   AuthenticatedKasirRoute: typeof AuthenticatedKasirRoute
   AuthenticatedModalRoute: typeof AuthenticatedModalRoute
+  AuthenticatedPengaturanRoute: typeof AuthenticatedPengaturanRoute
   AuthenticatedPromptRoute: typeof AuthenticatedPromptRoute
   AuthenticatedStokRoute: typeof AuthenticatedStokRoute
 }
@@ -239,6 +259,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInfoRoute: AuthenticatedInfoRoute,
   AuthenticatedKasirRoute: AuthenticatedKasirRoute,
   AuthenticatedModalRoute: AuthenticatedModalRoute,
+  AuthenticatedPengaturanRoute: AuthenticatedPengaturanRoute,
   AuthenticatedPromptRoute: AuthenticatedPromptRoute,
   AuthenticatedStokRoute: AuthenticatedStokRoute,
 }
