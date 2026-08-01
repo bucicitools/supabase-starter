@@ -1,0 +1,27 @@
+import logoMark from "@/assets/bucici-mark.jpg.asset.json";
+import logoFull from "@/assets/bucici-logo.jpg.asset.json";
+import { cn } from "@/lib/utils";
+
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <img
+      src={logoMark.url}
+      alt="Logo BUCICI"
+      className={cn("rounded-xl object-cover", className)}
+      width={48}
+      height={48}
+    />
+  );
+}
+
+export function LogoFull({ className }: { className?: string }) {
+  return (
+    <img
+      src={logoFull.url}
+      alt="BUCICI — Simple Business Buddy"
+      className={cn("rounded-2xl object-cover", className)}
+      width={160}
+      height={160}
+    />
+  );
+}

@@ -1,24 +1,47 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useAuth } from "@/lib/auth";
+import { LogoFull } from "@/components/Logo";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "BUCICI — Simple Business Buddy" },
+      {
+        name: "description",
+        content:
+          "Satu aplikasi untuk kasir, stok, hitung modal, dan kreasi prompt promosi usaha kecil Indonesia.",
+      },
+      { property: "og:title", content: "BUCICI — Simple Business Buddy" },
+      {
+        property: "og:description",
+        content: "Kasir, stok, hitung modal, dan kreasi prompt dalam satu aplikasi.",
+      },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const { loading, user, role } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) {
+      void navigate({ to: "/auth", replace: true });
+    } else if (role === "super_admin") {
+      void navigate({ to: "/admin", replace: true });
+    } else {
+      void navigate({ to: "/home", replace: true });
+    }
+  }, [loading, user, role, navigate]);
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="brand-gradient flex min-h-screen flex-col items-center justify-center gap-6 px-6">
+      <LogoFull className="h-32 w-32 animate-pulse shadow-brand" />
+      <h1 className="sr-only">BUCICI — Simple Business Buddy</h1>
+      <p className="text-sm font-medium tracking-widest text-primary-foreground/80">MEMUAT…</p>
     </div>
   );
 }
