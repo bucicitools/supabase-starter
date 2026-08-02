@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/pengaturan")({
   component: SettingsPage,
 });
 
-const TOOL_KEYS = ["kasir", "modal", "stok", "hpp", "prompt"];
+const TOOL_KEYS = ["dashboard", "kasir", "stok", "hpp", "prompt"];
 
 function SettingsPage() {
   const { tenant, profile, role, refresh } = useAuth();
@@ -44,7 +44,12 @@ function SettingsPage() {
     receipt_extra: "",
     receipt_footer: "",
   });
-  const [member, setMember] = useState({ fullName: "", email: "", password: "", tool: "kasir" });
+  const [member, setMember] = useState<{ fullName: string; email: string; password: string; tools: string[] }>({
+    fullName: "",
+    email: "",
+    password: "",
+    tools: ["kasir"],
+  });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -70,7 +75,7 @@ function SettingsPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("id,full_name,email,allowed_tool")
+        .select("id,full_name,email,allowed_tool,allowed_tools")
         .eq("tenant_id", tenantId!)
         .order("full_name");
       return data ?? [];
@@ -117,7 +122,7 @@ function SettingsPage() {
         email: member.email.trim(),
         password: member.password,
         tenantRoleId: null,
-        allowedTool: member.tool,
+        allowedTools: member.tools,
       },
     });
     setBusy(false);
@@ -125,7 +130,7 @@ function SettingsPage() {
       toast.error(res.error);
       return;
     }
-    setMember({ fullName: "", email: "", password: "", tool: "kasir" });
+    setMember({ fullName: "", email: "", password: "", tools: ["kasir"] });
     void qc.invalidateQueries({ queryKey: ["members", tenantId] });
     toast.success("Anggota ditambahkan");
   }
@@ -173,9 +178,16 @@ function SettingsPage() {
                     {TOOL_KEYS.map((k) => (
                       <button
                         key={k}
-                        onClick={() => setMember({ ...member, tool: k })}
+                        onClick={() =>
+                          setMember({
+                            ...member,
+                            tools: member.tools.includes(k)
+                              ? member.tools.filter((x) => x !== k)
+                              : [...member.tools, k],
+                          })
+                        }
                         className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ${
-                          member.tool === k
+                          member.tools.includes(k)
                             ? "bg-primary text-primary-foreground"
                             : "border border-border bg-muted text-foreground"
                         }`}
@@ -197,9 +209,37 @@ function SettingsPage() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold">{m.full_name}</p>
                       <p className="truncate text-xs text-muted-foreground">
-                        {m.email} · akses {m.allowed_tool ?? "semua"}
+                        {m.email} · akses {m.allowed_tools?.length ? m.allowed_tools.join(", ") : (m.allowed_tool ?? "semua")}
                       </p>
                     </div>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Edit hak akses"
+                      onClick={async () => {
+                        const current = m.allowed_tools?.length ? m.allowed_tools : m.allowed_tool ? [m.allowed_tool] : [];
+                        const raw = window.prompt(
+                          `Hak akses untuk ${m.full_name}\nPilihan: ${TOOL_KEYS.join(", ")}\nPisahkan dengan koma.`,
+                          current.join(", "),
+                        );
+                        if (raw == null) return;
+                        const tools = raw
+                          .split(",")
+                          .map((x) => x.trim().toLowerCase())
+                          .filter((x) => TOOL_KEYS.includes(x));
+                        const res = await updateMemberAccess({
+                          data: { userId: m.id, fullName: m.full_name, allowedTools: tools },
+                        });
+                        if (!res.ok) {
+                          toast.error(res.error);
+                          return;
+                        }
+                        void qc.invalidateQueries({ queryKey: ["members", tenantId] });
+                        toast.success("Hak akses diperbarui");
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                     {m.id !== profile?.id && (
                       <Button
                         size="icon"
