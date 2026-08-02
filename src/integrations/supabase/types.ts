@@ -172,6 +172,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          is_pinned: boolean
           link: string | null
           title: string
           updated_at: string
@@ -180,6 +181,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          is_pinned?: boolean
           link?: string | null
           title: string
           updated_at?: string
@@ -188,6 +190,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          is_pinned?: boolean
           link?: string | null
           title?: string
           updated_at?: string
@@ -292,6 +295,7 @@ export type Database = {
       profiles: {
         Row: {
           allowed_tool: string | null
+          allowed_tools: string[]
           created_at: string
           email: string
           full_name: string
@@ -302,6 +306,7 @@ export type Database = {
         }
         Insert: {
           allowed_tool?: string | null
+          allowed_tools?: string[]
           created_at?: string
           email: string
           full_name: string
@@ -312,6 +317,7 @@ export type Database = {
         }
         Update: {
           allowed_tool?: string | null
+          allowed_tools?: string[]
           created_at?: string
           email?: string
           full_name?: string
