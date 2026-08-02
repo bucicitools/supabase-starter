@@ -1,4 +1,4 @@
-import logoMark from "@/assets/bucici-mark.jpg.asset.json";
+import logoMark from "@/assets/bucici-icon.jpg.asset.json";
 import logoFull from "@/assets/bucici-logo.jpg.asset.json";
 import { cn } from "@/lib/utils";
 

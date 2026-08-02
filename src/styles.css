@@ -90,7 +90,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
   --border: oklch(0.9 0.015 255);
-  --input: oklch(0.9 0.015 255);
+  --input: oklch(0.82 0.035 255);
   --ring: oklch(0.52 0.235 262);
   --gradient-brand: linear-gradient(135deg, oklch(0.45 0.24 264), oklch(0.6 0.21 256));
   --shadow-soft: 0 1px 2px oklch(0.4 0.05 262 / 0.06), 0 8px 24px -12px oklch(0.45 0.2 262 / 0.25);
@@ -164,6 +164,45 @@
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
   }
+}
+
+/* Kolom form terlihat jelas di mode terang */
+@layer base {
+  html:not(.dark) input:not([type="checkbox"]):not([type="radio"]),
+  html:not(.dark) textarea,
+  html:not(.dark) select,
+  html:not(.dark) [data-slot="select-trigger"] {
+    border-width: 1.5px;
+    border-color: var(--input);
+    background-color: var(--color-card);
+    box-shadow: 0 1px 2px oklch(0.45 0.05 262 / 0.06);
+  }
+  html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):hover,
+  html:not(.dark) textarea:hover,
+  html:not(.dark) [data-slot="select-trigger"]:hover {
+    border-color: color-mix(in oklab, var(--primary) 45%, var(--input));
+  }
+  html:not(.dark) input:focus-visible,
+  html:not(.dark) textarea:focus-visible,
+  html:not(.dark) [data-slot="select-trigger"]:focus-visible {
+    border-color: var(--primary);
+  }
+}
+
+/* Angka profesional: tabular, rata lebar */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1, "ss01" 1;
+  letter-spacing: -0.01em;
+}
+
+/* Tabel/kolom lebar di HP dapat digeser mendatar */
+.x-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.x-scroll > * {
+  min-width: max-content;
 }
 
 @utility brand-gradient {
