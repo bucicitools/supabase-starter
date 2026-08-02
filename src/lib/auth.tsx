@@ -11,6 +11,7 @@ export type Profile = {
   tenant_id: string | null;
   tenant_role_id: string | null;
   allowed_tool: string | null;
+  allowed_tools: string[] | null;
 };
 
 export type Tenant = {

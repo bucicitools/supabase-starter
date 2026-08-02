@@ -89,7 +89,7 @@ const MemberInput = z.object({
   email: z.string().trim().email().max(160),
   password: z.string().min(6).max(72),
   tenantRoleId: z.string().uuid().nullable(),
-  allowedTool: z.string().max(30).default("kasir"),
+  allowedTools: z.array(z.string().max(30)).max(20).default(["kasir"]),
 });
 
 export const createMember = createServerFn({ method: "POST" })
@@ -118,9 +118,42 @@ export const createMember = createServerFn({ method: "POST" })
       full_name: data.fullName,
       tenant_id: me.tenant_id,
       tenant_role_id: data.tenantRoleId,
-      allowed_tool: data.allowedTool,
+      allowed_tools: data.allowedTools,
     });
     await supabaseAdmin.from("user_roles").insert({ user_id: created.user.id, role: "member" });
+    return { ok: true as const };
+  });
+
+const AccessInput = z.object({
+  userId: z.string().uuid(),
+  fullName: z.string().trim().min(2).max(80),
+  allowedTools: z.array(z.string().max(30)).max(20),
+});
+
+export const updateMemberAccess = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => AccessInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: me } = await context.supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", context.userId)
+      .maybeSingle();
+    if (!me?.tenant_id) return { ok: false as const, error: "Toko tidak ditemukan." };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: target } = await supabaseAdmin
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", data.userId)
+      .maybeSingle();
+    if (target?.tenant_id !== me.tenant_id) return { ok: false as const, error: "Tidak diizinkan." };
+
+    const { error } = await supabaseAdmin
+      .from("profiles")
+      .update({ full_name: data.fullName, allowed_tools: data.allowedTools })
+      .eq("id", data.userId);
+    if (error) return { ok: false as const, error: error.message };
     return { ok: true as const };
   });
 
