@@ -162,6 +162,30 @@ function SettingsPage() {
           <Button onClick={() => void saveStore()} disabled={!isOwner} className="w-full">
             Simpan Pengaturan
           </Button>
+          {isOwner && (
+            <div className="mt-2 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+              <p className="text-sm font-bold text-destructive">Zona Berbahaya</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Menghapus seluruh transaksi, item transaksi, dan catatan kas laci. Produk dan bahan tidak ikut terhapus.
+              </p>
+              <Button
+                variant="destructive"
+                className="mt-3 w-full"
+                onClick={async () => {
+                  if (!window.confirm("Hapus SELURUH data keuangan (transaksi & kas)? Tindakan ini tidak bisa dibatalkan.")) return;
+                  const res = await wipeFinancialData();
+                  if (!res.ok) {
+                    toast.error(res.error);
+                    return;
+                  }
+                  void qc.invalidateQueries();
+                  toast.success("Seluruh data keuangan dihapus");
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Hapus Seluruh Data Keuangan
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="tim" className="mt-4 space-y-4">
