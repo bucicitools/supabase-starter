@@ -925,7 +925,7 @@ function KasirPage() {
       {/* ================= RIWAYAT ================= */}
       {tab === "riwayat" && (
         <div className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input value={hq} onChange={(e) => setHq(e.target.value)} placeholder="Cari transaksi/pelanggan…" className="h-11 rounded-xl" />
             <Select value={hstatus} onValueChange={setHstatus}>
               <SelectTrigger className="h-11 w-44 rounded-xl">
@@ -958,6 +958,28 @@ function KasirPage() {
             >
               <Download className="mr-2 h-4 w-4" /> CSV
             </Button>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
+            <div className="space-y-1">
+              <Label className="text-xs">Dari tanggal</Label>
+              <Input type="date" value={hfrom} onChange={(e) => setHfrom(e.target.value)} className="h-10" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Sampai tanggal</Label>
+              <Input type="date" value={hto} onChange={(e) => setHto(e.target.value)} className="h-10" />
+            </div>
+            {(hfrom || hto) && (
+              <Button
+                variant="ghost"
+                className="h-10"
+                onClick={() => {
+                  setHfrom("");
+                  setHto("");
+                }}
+              >
+                Reset tanggal
+              </Button>
+            )}
           </div>
 
           {riwayat.length === 0 && (
