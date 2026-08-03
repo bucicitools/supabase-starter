@@ -126,6 +126,11 @@ function KasirPage() {
   const [saving, setSaving] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [settling, setSettling] = useState<(typeof history)[number] | null>(null);
+  const [view, setView] = useState<"card" | "list">("card");
+  const [hit, setHit] = useState<string | null>(null);
+  const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const qtyInCart = (id: string) => cart.find((l) => l.productId === id)?.qty ?? 0;
 
   const filtered = useMemo(
     () =>
@@ -148,6 +153,9 @@ function KasirPage() {
   const change = Math.max(0, paidNum - total);
 
   function addProduct(p: (typeof products)[number]) {
+    setHit(p.id);
+    if (hitTimer.current) clearTimeout(hitTimer.current);
+    hitTimer.current = setTimeout(() => setHit(null), 260);
     setCart((c) => {
       const i = c.findIndex((l) => l.productId === p.id);
       if (i >= 0) {
@@ -160,7 +168,8 @@ function KasirPage() {
   }
 
   function setQty(idx: number, qty: number) {
-    setCart((c) => (qty <= 0 ? c.filter((_, i) => i !== idx) : c.map((l, i) => (i === idx ? { ...l, qty } : l))));
+    const v = Math.round(qty * 1000) / 1000;
+    setCart((c) => (v <= 0 ? c.filter((_, i) => i !== idx) : c.map((l, i) => (i === idx ? { ...l, qty: v } : l))));
   }
 
   function resetCart() {
