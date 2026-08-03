@@ -12,7 +12,6 @@ import {
   Plus,
   Printer,
   Search,
-  Share2,
   ShoppingCart,
   Trash2,
 } from "lucide-react";
@@ -21,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { dateTimeID, downloadCSV, rupiah, txCode, parseNum, num } from "@/lib/format";
-import { Receipt, StatusBadge, receiptText, type ReceiptData } from "@/components/Receipt";
+import { Receipt, StatusBadge, type ReceiptData } from "@/components/Receipt";
 import { ReceiptActions } from "@/components/ReceiptActions";
 import { ProductImage } from "@/components/ProductImage";
 import { Button } from "@/components/ui/button";
