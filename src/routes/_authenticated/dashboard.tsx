@@ -64,17 +64,25 @@ function DashboardPage() {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       const iso = start.toISOString();
-      const [{ data: txs }, { data: items }, { data: cash }, { data: prods }, { data: allUnpaid }] = await Promise.all([
+      const [{ data: txs }, { data: items }, { data: cash }, { data: prods }, { data: allUnpaid }, { data: cashTx }] =
+        await Promise.all([
         supabase.from("transactions").select("*").eq("tenant_id", tenant!.id).gte("created_at", iso),
         supabase.from("transaction_items").select("qty,cost,name,created_at").eq("tenant_id", tenant!.id).gte("created_at", iso),
         supabase.from("cash_entries").select("*").eq("tenant_id", tenant!.id),
         supabase.from("products").select("stock,low_stock_threshold,cost").eq("tenant_id", tenant!.id),
         supabase.from("transactions").select("total").eq("tenant_id", tenant!.id).eq("status", "unpaid"),
+        supabase
+          .from("transactions")
+          .select("total,paid_amount,payment_method,paid_at,created_at")
+          .eq("tenant_id", tenant!.id)
+          .eq("status", "paid"),
       ]);
+      // Omzet = seluruh transaksi hari ini yang tidak dibatalkan (lunas + bayar nanti/piutang).
+      const sah = (txs ?? []).filter((t) => t.status !== "void");
       const paid = (txs ?? []).filter((t) => t.status === "paid");
       const byMethod = (m: string) =>
         paid.filter((t) => (t.payment_method ?? "CASH").toUpperCase() === m).reduce((a, t) => a + Number(t.total), 0);
-      const omzet = paid.reduce((a, t) => a + Number(t.total), 0);
+      const omzet = sah.reduce((a, t) => a + Number(t.total), 0);
       const hpp = (items ?? []).reduce((a, i) => a + Number(i.cost ?? 0) * Number(i.qty), 0);
       const keluarHariIni = (cash ?? [])
         .filter((c) => c.type === "out" && c.created_at >= iso)
@@ -84,6 +92,14 @@ function DashboardPage() {
       const scoped = (cash ?? []).filter((c) => (since ? c.created_at >= since : true));
       const laciMasuk = scoped.filter((c) => c.type !== "out").reduce((a, c) => a + Number(c.amount), 0);
       const laciKeluar = scoped.filter((c) => c.type === "out").reduce((a, c) => a + Number(c.amount), 0);
+      // Sama persis dengan perhitungan "Uang di Laci Saat Ini" pada navigasi Kas.
+      const penjualanTunaiLaci = (cashTx ?? [])
+        .filter(
+          (t) =>
+            (t.payment_method ?? "CASH").toUpperCase() === "CASH" &&
+            (since ? (t.paid_at ?? t.created_at) >= since : true),
+        )
+        .reduce((a, t) => a + Number(t.paid_amount || t.total), 0);
       const best = Object.entries(
         (items ?? []).reduce<Record<string, number>>((acc, i) => {
           acc[i.name] = (acc[i.name] ?? 0) + Number(i.qty);
@@ -98,8 +114,8 @@ function DashboardPage() {
         tunai: byMethod("CASH"),
         qris: byMethod("QRIS"),
         transfer: byMethod("TRANSFER"),
-        laci: laciMasuk + byMethod("CASH") - laciKeluar,
-        trx: paid.length,
+        laci: laciMasuk + penjualanTunaiLaci - laciKeluar,
+        trx: sah.length,
         void: (txs ?? []).filter((t) => t.status === "void").length,
         best: best?.[0] ?? "—",
         low: (prods ?? []).filter((p) => Number(p.stock) <= Number(p.low_stock_threshold ?? 0)).length,
