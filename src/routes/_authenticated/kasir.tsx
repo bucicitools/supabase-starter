@@ -657,21 +657,30 @@ function KasirPage() {
               <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Nama pelanggan (opsional)" />
               <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Catatan / no. meja" />
 
-              <div className="flex items-center gap-2">
-                <Label className="w-20 shrink-0 text-xs">Diskon</Label>
-                <Input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" />
-                <div className="flex overflow-hidden rounded-lg border border-border">
-                  {(["Rp", "%"] as const).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setDiscPercent(s === "%")}
-                      className={`px-3 py-1.5 text-xs font-semibold ${
-                        discPercent === (s === "%") ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Diskon</Label>
+                <div className="flex items-stretch gap-2">
+                  <Input
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    inputMode="decimal"
+                    className="num h-10 min-w-0 flex-1"
+                  />
+                  <div className="grid shrink-0 grid-cols-2 overflow-hidden rounded-lg border border-border">
+                    {(["Rp", "%"] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setDiscPercent(s === "%")}
+                        className={`h-10 w-12 text-sm font-bold transition ${
+                          discPercent === (s === "%")
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -724,23 +733,27 @@ function KasirPage() {
                       </Button>
                     ))}
                   </div>
-                  <Input value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="numeric" placeholder="Uang diterima" />
-                  <div className="flex flex-wrap gap-1.5">
-                    {QUICK.map((v) => (
-                      <Button
-                        key={v}
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPaid(String(parseNum(paid) + v))}
-                      >
-                        {v / 1000}k
-                      </Button>
-                    ))}
-                    <Button size="sm" variant="outline" onClick={() => setPaid(String(total))}>
-                      Uang pas
-                    </Button>
-                  </div>
-                  <Row label="Kembalian" value={rupiah(change)} />
+                  {method === "CASH" && (
+                    <>
+                      <Input value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="numeric" placeholder="Uang diterima" />
+                      <div className="flex flex-wrap gap-1.5">
+                        {QUICK.map((v) => (
+                          <Button
+                            key={v}
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPaid(String(parseNum(paid) + v))}
+                          >
+                            {v / 1000}k
+                          </Button>
+                        ))}
+                        <Button size="sm" variant="outline" onClick={() => setPaid(String(total))}>
+                          Uang pas
+                        </Button>
+                      </div>
+                      <Row label="Kembalian" value={rupiah(change)} />
+                    </>
+                  )}
                 </>
               )}
 
