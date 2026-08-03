@@ -128,6 +128,7 @@ function KasirPage() {
   const [settling, setSettling] = useState<(typeof history)[number] | null>(null);
   const [view, setView] = useState<"card" | "list">("card");
   const [hit, setHit] = useState<string | null>(null);
+  const [qtyDraft, setQtyDraft] = useState<Record<number, string>>({});
   const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qtyInCart = (id: string) => cart.find((l) => l.productId === id)?.qty ?? 0;
