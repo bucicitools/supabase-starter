@@ -310,9 +310,23 @@ function KasirPage() {
 
   async function voidTx(id: string) {
     const reason = window.prompt("Alasan pembatalan?") ?? "";
+    // Kembalikan stok seluruh item transaksi yang dibatalkan.
+    const { data: items } = await supabase
+      .from("transaction_items")
+      .select("product_id,qty")
+      .eq("transaction_id", id);
+    for (const it of items ?? []) {
+      if (!it.product_id) continue;
+      const { data: p } = await supabase.from("products").select("stock").eq("id", it.product_id).maybeSingle();
+      if (!p) continue;
+      await supabase
+        .from("products")
+        .update({ stock: Number(p.stock ?? 0) + Number(it.qty) })
+        .eq("id", it.product_id);
+    }
     await supabase.from("transactions").update({ status: "void", void_note: reason }).eq("id", id);
-    void qc.invalidateQueries({ queryKey: ["transactions", tenantId] });
-    toast.success("Transaksi dibatalkan");
+    void qc.invalidateQueries();
+    toast.success("Transaksi dibatalkan", { description: "Stok seluruh item dikembalikan." });
   }
 
   async function openReceipt(t: (typeof history)[number]) {
@@ -589,10 +603,12 @@ function KasirPage() {
                   ))}
                 </div>
               </div>
-              <div>
-                <Label className="text-xs">Uang diterima</Label>
-                <Input value={settlePaid} onChange={(e) => setSettlePaid(e.target.value)} inputMode="numeric" />
-              </div>
+              {settleMethod === "CASH" && (
+                <div>
+                  <Label className="text-xs">Uang diterima</Label>
+                  <Input value={settlePaid} onChange={(e) => setSettlePaid(e.target.value)} inputMode="numeric" />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <Button className="h-12" onClick={() => void confirmSettle()}>
                   Konfirmasi Lunas
