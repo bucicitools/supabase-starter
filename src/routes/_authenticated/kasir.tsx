@@ -1161,13 +1161,19 @@ function KasirPage() {
               extra={tenant?.receipt_extra}
             />
           )}
-          <DialogFooter className="no-print grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => window.print()}>
-              <Printer className="mr-2 h-4 w-4" /> Cetak
-            </Button>
-            <Button onClick={shareReceipt}>
-              <Share2 className="mr-2 h-4 w-4" /> Bagikan
-            </Button>
+          <DialogFooter className="no-print">
+            {receipt && (
+              <ReceiptActions
+                data={receipt}
+                shop={{
+                  header: tenant?.receipt_header || tenant?.business_name || "BUCICI",
+                  address: tenant?.receipt_address ?? "",
+                  phone: tenant?.receipt_phone ?? "",
+                  footer: tenant?.receipt_footer ?? "",
+                  extra: tenant?.receipt_extra ?? "",
+                }}
+              />
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
