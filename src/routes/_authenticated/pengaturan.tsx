@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { createMember, deleteMember, updateMemberAccess, wipeFinancialData } from "@/lib/account.functions";
+import { Receipt, type ReceiptData } from "@/components/Receipt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +28,26 @@ export const Route = createFileRoute("/_authenticated/pengaturan")({
 });
 
 const TOOL_KEYS = ["dashboard", "kasir", "stok", "hpp", "prompt"];
+
+const PREVIEW: ReceiptData = {
+  code: "TRX20260101-120000",
+  at: new Date().toISOString(),
+  lines: [
+    { name: "Es Teh Manis", qty: 2, price: 5000 },
+    { name: "Ayam Geprek", qty: 1, price: 18000 },
+  ],
+  subtotal: 28000,
+  discount: 2000,
+  tax: 0,
+  total: 26000,
+  paid: 30000,
+  change: 4000,
+  customer: "Bu Ani",
+  method: "CASH",
+  status: "paid",
+  note: "Contoh pratinjau",
+  cashier: "Kasir 1",
+};
 
 function SettingsPage() {
   const { tenant, profile, role, refresh } = useAuth();
@@ -144,7 +165,8 @@ function SettingsPage() {
           <TabsTrigger value="tampilan">Tampilan</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="toko" className="mt-4 space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <TabsContent value="toko" className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_320px]">
+          <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
           <F label="Nama toko" value={store.business_name} onChange={(v) => setStore({ ...store, business_name: v })} />
           <F label="Pajak default (%)" value={store.default_tax} onChange={(v) => setStore({ ...store, default_tax: v })} />
           <F label="Judul struk" value={store.receipt_header} onChange={(v) => setStore({ ...store, receipt_header: v })} />
@@ -186,6 +208,23 @@ function SettingsPage() {
               </Button>
             </div>
           )}
+          </div>
+          <aside className="lg:sticky lg:top-4 lg:self-start">
+            <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Pratinjau Struk</p>
+            <div className="rounded-2xl border border-border bg-muted/40 p-3 shadow-soft">
+              <Receipt
+                data={PREVIEW}
+                header={store.receipt_header || store.business_name}
+                address={store.receipt_address}
+                phone={store.receipt_phone}
+                footer={store.receipt_footer}
+                extra={store.receipt_extra}
+              />
+            </div>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              Pratinjau berubah otomatis saat kamu mengetik. Data di atas hanya contoh.
+            </p>
+          </aside>
         </TabsContent>
 
         <TabsContent value="tim" className="mt-4 space-y-4">
