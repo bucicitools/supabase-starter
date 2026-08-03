@@ -1071,10 +1071,52 @@ function KasirPage() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <Stat label="Omzet" value={rupiah(omzet)} tone="brand" />
+            <Stat label="Piutang (bayar nanti)" value={rupiah(piutangRekap)} />
             <Stat label="Uang keluar" value={rupiah(uangKeluar)} tone="destructive" />
             <Stat label="Saldo kas laci" value={rupiah(saldoLaci)} tone="success" />
-            <Stat label="Transaksi" value={String(rekapPaid.length)} />
+            <Stat label="Transaksi" value={String(rekapSah.length)} />
             <Stat label="Void" value={String(rekapTx.filter((t) => t.status === "void").length)} tone="destructive" />
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="font-bold">Rincian Menu Terjual</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  downloadCSV(
+                    "menu-terjual-bucici.csv",
+                    soldQty.map(([name, v]) => ({ menu: name, qty: v.qty, omzet: v.total })),
+                  )
+                }
+              >
+                <Download className="mr-2 h-4 w-4" /> CSV
+              </Button>
+            </div>
+            {soldQty.length === 0 && <p className="text-sm text-muted-foreground">Belum ada menu terjual pada periode ini.</p>}
+            <div className="x-scroll">
+              {soldQty.length > 0 && (
+                <table className="w-full min-w-[420px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                      <th className="py-1.5">Menu</th>
+                      <th className="py-1.5 text-right">Qty</th>
+                      <th className="py-1.5 text-right">Omzet</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {soldQty.map(([name, v]) => (
+                      <tr key={name} className="border-t border-border/60">
+                        <td className="py-1.5 pr-2">{name}</td>
+                        <td className="num py-1.5 text-right font-semibold">{num(v.qty)}</td>
+                        <td className="num py-1.5 text-right">{rupiah(v.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
