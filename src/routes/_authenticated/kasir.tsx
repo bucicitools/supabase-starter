@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Banknote,
   Download,
   History,
+  LayoutGrid,
+  List,
   Minus,
   Plus,
   Printer,
@@ -18,8 +20,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
-import { dateTimeID, downloadCSV, rupiah, txCode, parseNum } from "@/lib/format";
+import { dateTimeID, downloadCSV, rupiah, txCode, parseNum, num } from "@/lib/format";
 import { Receipt, StatusBadge, receiptText, type ReceiptData } from "@/components/Receipt";
+import { ReceiptActions } from "@/components/ReceiptActions";
+import { ProductImage } from "@/components/ProductImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
