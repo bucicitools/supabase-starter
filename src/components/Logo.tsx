@@ -1,5 +1,5 @@
 import logoMark from "@/assets/bucici-icon.jpg.asset.json";
-import logoFull from "@/assets/bucici-logo.jpg.asset.json";
+import logoLogin from "@/assets/bucici-login-icon.jpg.asset.json";
 import { cn } from "@/lib/utils";
 
 export function LogoMark({ className }: { className?: string }) {
@@ -17,7 +17,7 @@ export function LogoMark({ className }: { className?: string }) {
 export function LogoFull({ className }: { className?: string }) {
   return (
     <img
-      src={logoFull.url}
+      src={logoLogin.url}
       alt="BUCICI — Simple Business Buddy"
       className={cn("rounded-2xl object-cover", className)}
       width={160}
