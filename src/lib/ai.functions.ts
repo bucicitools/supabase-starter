@@ -84,6 +84,7 @@ const PromptInput = z.object({
   price: z.string().max(60).optional().default(""),
   info: z.string().max(200).optional().default(""),
   cta: z.string().max(80).optional().default(""),
+  extra: z.string().max(600).optional().default(""),
   ratio: z.string().max(60),
   pixels: z.string().max(60),
 });
@@ -96,6 +97,7 @@ export const generateCreativePrompt = createServerFn({ method: "POST" })
 Keluarkan HANYA JSON valid tanpa markdown fence dengan bentuk:
 {"prompt":"...","negative_prompt":"...","caption_instagram":"...","caption_facebook":"...","hashtags":"..."}
 - "prompt": WAJIB diawali kalimat instruksi bahasa Inggris untuk EDIT foto produk yang diunggah user, persis seperti ini di baris pertama: "Using the attached product photo as the exact reference, edit and enhance this image WITHOUT changing the product itself — keep the product's shape, color, texture, label, branding and proportions 100% identical to the reference photo. Do not invent or replace the product." Setelah kalimat itu, lanjutkan deskripsi bahasa Inggris, sangat detail (subjek, komposisi, lighting, lensa, material, background, mood, penempatan teks judul/tagline/harga/CTA, rasio & resolusi), siap ditempel ke ChatGPT/Gemini/Midjourney. Minimal 120 kata. Akhiri "prompt" dengan penegasan: "Product identity must remain persistent and unchanged from the attached reference image."
+- WAJIB menautkan tiga hal jadi satu kesatuan yang koheren: (1) JENIS PRODUK, (2) STYLE yang dipilih, (3) semua TEKS (judul, tagline, harga, info, CTA) dan (4) DETIL TAMBAHAN dari user. Terjemahkan style ke arahan visual konkret dalam bahasa Inggris, contoh: Fresh Style = dewy droplets, cool daylight, green herbs; Bold Style = high contrast, heavy typography, saturated colors; Hot Style = fiery warm tones, chili/steam accents; Traditional Style = wooden tray, batik/rattan props, warm heritage tone; Playful Healthy Style = pastel, fruits, cheerful; Natural Photography = realistic natural light, no poster text overlay; Youth Fun Poster = gen-z collage, sticker elements; Street Fun Poster = urban night street food vibe, neon; Rustic Style = weathered wood, matte earthy; Emoji Style = playful emoji stickers around product; Splash Style = liquid/ingredient splash freeze motion; Ramadhan Style = lantern, crescent, dusk purple-gold; Lebaran Style = ketupat, festive green-gold; Holiday Style = seasonal festive props & bokeh lights. DETIL TAMBAHAN user harus benar-benar diterapkan (warna tema, model manusia, properti, dsb) dan tidak boleh diabaikan.
 - caption: bahasa Indonesia, persuasif, pakai emoji secukupnya.
 - hashtags: 12-18 hashtag relevan dipisah spasi.`;
     const user = `Jenis produk: ${data.category}
@@ -105,6 +107,7 @@ Tagline: ${data.tagline}
 Harga: ${data.price}
 Info: ${data.info}
 Call to action: ${data.cta}
+Detil tambahan dari user (WAJIB diterapkan): ${data.extra || "(tidak ada)"}
 Rasio: ${data.ratio} (${data.pixels})`;
 
     try {

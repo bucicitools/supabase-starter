@@ -30,13 +30,20 @@ export const Route = createFileRoute("/_authenticated/prompt")({
 
 const CATEGORIES = ["Makanan", "Minuman", "Fashion", "Kerajinan", "Jasa", "Kecantikan", "Elektronik", "Lainnya"];
 const STYLES = [
-  "Studio bersih minimalis",
-  "Rustic kayu hangat",
-  "Flat lay estetik",
-  "Cinematic dramatis",
-  "Outdoor natural light",
-  "Neon modern",
-  "Poster promo bold",
+  "Fresh Style",
+  "Bold Style",
+  "Hot Style",
+  "Traditional Style",
+  "Playful Healthy Style",
+  "Natural Photography",
+  "Youth Fun Poster",
+  "Street Fun Poster",
+  "Rustic Style",
+  "Emoji Style",
+  "Splash Style",
+  "Ramadhan Style",
+  "Lebaran Style",
+  "Holiday Style",
 ];
 const RATIOS = [
   { label: "Feed 1:1", pixels: "1080x1080" },
@@ -54,6 +61,7 @@ function PromptPage() {
     price: "",
     info: "",
     cta: "",
+    extra: "",
     ratio: RATIOS[0]!.label,
   });
   const [busy, setBusy] = useState(false);
@@ -93,7 +101,7 @@ function PromptPage() {
             onChange={(v) => setForm({ ...form, category: v })}
           />
           <Picker
-            label="Gaya visual"
+            label="Gaya desain (style)"
             value={form.style}
             options={STYLES}
             onChange={(v) => setForm({ ...form, style: v })}
@@ -109,6 +117,15 @@ function PromptPage() {
           <TextField label="Harga" value={form.price} onChange={(v) => setForm({ ...form, price: v })} />
           <TextField label="Info tambahan" value={form.info} onChange={(v) => setForm({ ...form, info: v })} />
           <TextField label="Call to action" value={form.cta} onChange={(v) => setForm({ ...form, cta: v })} />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Detil Prompt Tambahan (opsional)</Label>
+          <Textarea
+            rows={3}
+            value={form.extra}
+            onChange={(e) => setForm({ ...form, extra: e.target.value })}
+            placeholder="Mis. warna tema merah kuning, tambahkan model pria memegang produk, background pasar tradisional…"
+          />
         </div>
         <Button className="h-12 w-full font-semibold" onClick={() => void generate()} disabled={busy}>
           {busy ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}

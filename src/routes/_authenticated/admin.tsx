@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Download, KeyRound, Loader2, Plus, Trash2 } from "lucide-react";
+import { Copy, Download, KeyRound, Loader2, Pin, PinOff, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -86,7 +86,11 @@ function AdminPage() {
   const { data: posts = [] } = useQuery({
     queryKey: ["info_posts"],
     queryFn: async () => {
-      const { data } = await supabase.from("info_posts").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("info_posts")
+        .select("*")
+        .order("is_pinned", { ascending: false })
+        .order("created_at", { ascending: false });
       return data ?? [];
     },
   });
@@ -313,9 +317,25 @@ function AdminPage() {
           {posts.map((p) => (
             <div key={p.id} className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
               <div className="min-w-0 flex-1">
-                <p className="font-semibold">{p.title}</p>
+                <p className="font-semibold">
+                  {p.is_pinned && <span className="mr-2 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">DISEMATKAN</span>}
+                  {p.title}
+                </p>
                 <p className="text-xs text-muted-foreground">{dateID(p.created_at)}</p>
               </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={p.is_pinned ? "Lepas sematan" : "Sematkan di atas"}
+                className={p.is_pinned ? "text-primary" : ""}
+                onClick={async () => {
+                  await supabase.from("info_posts").update({ is_pinned: !p.is_pinned }).eq("id", p.id);
+                  void qc.invalidateQueries({ queryKey: ["info_posts"] });
+                  toast.success(p.is_pinned ? "Sematan dilepas" : "Info disematkan di atas");
+                }}
+              >
+                {p.is_pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+              </Button>
               <Button
                 size="icon"
                 variant="ghost"

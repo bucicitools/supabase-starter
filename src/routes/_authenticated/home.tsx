@@ -37,8 +37,19 @@ const TOOLS = [
     desc: "Laba kotor, omzet, kas laci, dan ringkasan operasional hari ini.",
     icon: LayoutDashboard,
     ownerOnly: false,
+    tone: "bg-[#1e5eff] shadow-[0_10px_24px_-10px_#1e5eff]",
+    ring: "hover:border-[#1e5eff]/50",
   },
-  { key: "kasir", to: "/kasir", label: "Ruang Kasir", desc: "POS, kas laci, riwayat, rekapan, struk.", icon: ShoppingCart, ownerOnly: false },
+  {
+    key: "kasir",
+    to: "/kasir",
+    label: "Ruang Kasir",
+    desc: "POS, kas laci, riwayat, rekapan, struk.",
+    icon: ShoppingCart,
+    ownerOnly: false,
+    tone: "bg-[#059669] shadow-[0_10px_24px_-10px_#059669]",
+    ring: "hover:border-[#059669]/50",
+  },
   {
     key: "prompt",
     to: "/prompt",
@@ -46,11 +57,49 @@ const TOOLS = [
     desc: "Prompt foto produk & caption media sosial dengan AI.",
     icon: Sparkles,
     ownerOnly: false,
+    tone: "bg-[#7c3aed] shadow-[0_10px_24px_-10px_#7c3aed]",
+    ring: "hover:border-[#7c3aed]/50",
   },
-  { key: "stok", to: "/stok", label: "Ruang Stok", desc: "Produk jual, kategori, bahan & alat.", icon: Boxes, ownerOnly: false },
-  { key: "hpp", to: "/hpp", label: "Ruang Hitung Modal", desc: "HPP murni bahan + saran harga jual AI.", icon: Calculator, ownerOnly: false },
-  { key: "info", to: "/info", label: "Ruang Info", desc: "Pengumuman, video, dan AI-sisten usaha.", icon: Info, ownerOnly: true },
-  { key: "pengaturan", to: "/pengaturan", label: "Pengaturan", desc: "Profil toko, struk, tim, dan data.", icon: Settings, ownerOnly: false },
+  {
+    key: "stok",
+    to: "/stok",
+    label: "Ruang Stok",
+    desc: "Produk jual, kategori, bahan & alat.",
+    icon: Boxes,
+    ownerOnly: false,
+    tone: "bg-[#d97706] shadow-[0_10px_24px_-10px_#d97706]",
+    ring: "hover:border-[#d97706]/50",
+  },
+  {
+    key: "hpp",
+    to: "/hpp",
+    label: "Ruang Hitung Modal",
+    desc: "HPP murni bahan + saran harga jual AI.",
+    icon: Calculator,
+    ownerOnly: false,
+    tone: "bg-[#0891b2] shadow-[0_10px_24px_-10px_#0891b2]",
+    ring: "hover:border-[#0891b2]/50",
+  },
+  {
+    key: "info",
+    to: "/info",
+    label: "Ruang Info",
+    desc: "Pengumuman, video, dan AI-sisten usaha.",
+    icon: Info,
+    ownerOnly: true,
+    tone: "bg-[#e11d48] shadow-[0_10px_24px_-10px_#e11d48]",
+    ring: "hover:border-[#e11d48]/50",
+  },
+  {
+    key: "pengaturan",
+    to: "/pengaturan",
+    label: "Pengaturan",
+    desc: "Profil toko, struk, tim, dan data.",
+    icon: Settings,
+    ownerOnly: false,
+    tone: "bg-[#475569] shadow-[0_10px_24px_-10px_#475569]",
+    ring: "hover:border-[#475569]/50",
+  },
 ] as const;
 
 function HomePage() {
@@ -88,15 +137,15 @@ function HomePage() {
           const body = (
             <div
               className={`flex h-full flex-col gap-2 rounded-3xl border border-border bg-card p-5 shadow-soft transition-all ${
-                locked ? "opacity-60" : "hover:-translate-y-1 hover:border-primary/40 hover:shadow-brand"
+                locked ? "opacity-60" : `hover:-translate-y-1 hover:shadow-brand ${t.ring}`
               }`}
             >
-              <span className="brand-gradient grid h-12 w-12 place-items-center rounded-2xl text-primary-foreground shadow-brand">
+              <span className={`grid h-12 w-12 place-items-center rounded-2xl text-white ${t.tone}`}>
                 {locked ? <Lock className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
               </span>
               <p className="mt-1 text-lg font-bold leading-tight">{t.label}</p>
               <p className="text-sm text-muted-foreground">{locked ? (flag?.note ?? "Sedang dikunci") : t.desc}</p>
-              {!locked && <span className="mt-auto pt-2 text-sm font-semibold text-primary">Buka →</span>}
+              {!locked && <span className="mt-auto pt-2 text-sm font-semibold text-foreground/70">Buka →</span>}
             </div>
           );
           return locked ? <div key={t.key}>{body}</div> : <Link key={t.key} to={t.to}>{body}</Link>;

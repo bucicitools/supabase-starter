@@ -1,16 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
   Banknote,
   Download,
   History,
+  LayoutGrid,
+  List,
   Minus,
   Plus,
   Printer,
   Search,
-  Share2,
   ShoppingCart,
   Trash2,
 } from "lucide-react";
@@ -18,8 +19,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
-import { dateTimeID, downloadCSV, rupiah, txCode, parseNum } from "@/lib/format";
-import { Receipt, StatusBadge, receiptText, type ReceiptData } from "@/components/Receipt";
+import { dateTimeID, downloadCSV, rupiah, txCode, parseNum, num } from "@/lib/format";
+import { Receipt, StatusBadge, type ReceiptData } from "@/components/Receipt";
+import { ReceiptActions } from "@/components/ReceiptActions";
+import { ProductImage } from "@/components/ProductImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -122,6 +125,12 @@ function KasirPage() {
   const [saving, setSaving] = useState(false);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [settling, setSettling] = useState<(typeof history)[number] | null>(null);
+  const [view, setView] = useState<"card" | "list">("card");
+  const [hit, setHit] = useState<string | null>(null);
+  const [qtyDraft, setQtyDraft] = useState<Record<number, string>>({});
+  const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const qtyInCart = (id: string) => cart.find((l) => l.productId === id)?.qty ?? 0;
 
   const filtered = useMemo(
     () =>
@@ -144,6 +153,9 @@ function KasirPage() {
   const change = Math.max(0, paidNum - total);
 
   function addProduct(p: (typeof products)[number]) {
+    setHit(p.id);
+    if (hitTimer.current) clearTimeout(hitTimer.current);
+    hitTimer.current = setTimeout(() => setHit(null), 260);
     setCart((c) => {
       const i = c.findIndex((l) => l.productId === p.id);
       if (i >= 0) {
@@ -156,7 +168,8 @@ function KasirPage() {
   }
 
   function setQty(idx: number, qty: number) {
-    setCart((c) => (qty <= 0 ? c.filter((_, i) => i !== idx) : c.map((l, i) => (i === idx ? { ...l, qty } : l))));
+    const v = Math.round(qty * 1000) / 1000;
+    setCart((c) => (v <= 0 ? c.filter((_, i) => i !== idx) : c.map((l, i) => (i === idx ? { ...l, qty: v } : l))));
   }
 
   function resetCart() {
@@ -296,9 +309,23 @@ function KasirPage() {
 
   async function voidTx(id: string) {
     const reason = window.prompt("Alasan pembatalan?") ?? "";
+    // Kembalikan stok seluruh item transaksi yang dibatalkan.
+    const { data: items } = await supabase
+      .from("transaction_items")
+      .select("product_id,qty")
+      .eq("transaction_id", id);
+    for (const it of items ?? []) {
+      if (!it.product_id) continue;
+      const { data: p } = await supabase.from("products").select("stock").eq("id", it.product_id).maybeSingle();
+      if (!p) continue;
+      await supabase
+        .from("products")
+        .update({ stock: Number(p.stock ?? 0) + Number(it.qty) })
+        .eq("id", it.product_id);
+    }
     await supabase.from("transactions").update({ status: "void", void_note: reason }).eq("id", id);
-    void qc.invalidateQueries({ queryKey: ["transactions", tenantId] });
-    toast.success("Transaksi dibatalkan");
+    void qc.invalidateQueries();
+    toast.success("Transaksi dibatalkan", { description: "Stok seluruh item dikembalikan." });
   }
 
   async function openReceipt(t: (typeof history)[number]) {
@@ -322,17 +349,6 @@ function KasirPage() {
       note: t.note ?? "",
       cashier: t.cashier_name ?? "",
     });
-  }
-
-  function shareReceipt() {
-    if (!receipt) return;
-    const text = receiptText(
-      receipt,
-      tenant?.receipt_header ?? tenant?.business_name,
-      tenant?.receipt_address,
-      tenant?.receipt_footer,
-    );
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
   }
 
   /* ---------------- kas laci ---------------- */
@@ -372,12 +388,17 @@ function KasirPage() {
       toast.error("Isi nominal dulu");
       return;
     }
+    if (kasType !== "fill" && !kasNote.trim()) {
+      toast.error("Catatan wajib diisi", { description: "Tulis keterangan uang masuk/keluar." });
+      return;
+    }
+    const isReset = kasType === "fill" ? kasReset : false;
     const { error } = await supabase.from("cash_entries").insert({
       tenant_id: tenantId,
       type: kasType,
       amount: value,
       note: kasNote.trim() || null,
-      is_reset: kasReset,
+      is_reset: isReset,
       created_by: profile?.id ?? null,
       created_by_name: profile?.full_name ?? null,
     });
@@ -395,10 +416,15 @@ function KasirPage() {
   /* ---------------- riwayat filter ---------------- */
   const [hq, setHq] = useState("");
   const [hstatus, setHstatus] = useState("all");
+  const [hfrom, setHfrom] = useState("");
+  const [hto, setHto] = useState("");
   const riwayat = history.filter((t) => {
     const okS = hstatus === "all" || t.status === hstatus;
     const okQ = [t.code, t.customer_name ?? ""].join(" ").toLowerCase().includes(hq.trim().toLowerCase());
-    return okS && okQ;
+    const d = new Date(t.created_at);
+    const okFrom = !hfrom || d >= new Date(`${hfrom}T00:00:00`);
+    const okTo = !hto || d <= new Date(`${hto}T23:59:59`);
+    return okS && okQ && okFrom && okTo;
   });
 
   /* ---------------- rekapan ---------------- */
@@ -412,7 +438,10 @@ function KasirPage() {
   }, [period]);
   const rekapTx = history.filter((t) => (rekapFrom ? t.created_at >= rekapFrom : true));
   const rekapPaid = rekapTx.filter((t) => t.status === "paid");
-  const omzet = rekapPaid.reduce((s, t) => s + Number(t.total), 0);
+  // Omzet mencakup transaksi lunas DAN bayar nanti (piutang), kecuali yang dibatalkan.
+  const rekapSah = rekapTx.filter((t) => t.status !== "void");
+  const omzet = rekapSah.reduce((s, t) => s + Number(t.total), 0);
+  const piutangRekap = rekapTx.filter((t) => t.status === "unpaid").reduce((s, t) => s + Number(t.total), 0);
   const uangKeluar = cash
     .filter((c) => c.type === "out" && (rekapFrom ? c.created_at >= rekapFrom : true))
     .reduce((s, c) => s + Number(c.amount), 0);
@@ -424,12 +453,39 @@ function KasirPage() {
     }, {}),
   );
   const byCashier = Object.entries(
-    rekapPaid.reduce<Record<string, { total: number; n: number }>>((acc, t) => {
+    rekapSah.reduce<Record<string, { total: number; n: number }>>((acc, t) => {
       const k = t.cashier_name ?? "-";
       acc[k] = { total: (acc[k]?.total ?? 0) + Number(t.total), n: (acc[k]?.n ?? 0) + 1 };
       return acc;
     }, {}),
   );
+
+  /* rincian qty menu terjual pada periode rekap */
+  const { data: rekapItems = [] } = useQuery({
+    queryKey: ["transaction_items", tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transaction_items")
+        .select("name,qty,price,transaction_id,created_at")
+        .eq("tenant_id", tenantId!)
+        .limit(5000);
+      return data ?? [];
+    },
+  });
+  const sahIds = new Set(rekapSah.map((t) => t.id));
+  const soldQty = Object.entries(
+    rekapItems
+      .filter((i) => sahIds.has(i.transaction_id))
+      .reduce<Record<string, { qty: number; total: number }>>((acc, i) => {
+        const k = i.name;
+        acc[k] = {
+          qty: (acc[k]?.qty ?? 0) + Number(i.qty),
+          total: (acc[k]?.total ?? 0) + Number(i.qty) * Number(i.price),
+        };
+        return acc;
+      }, {}),
+  ).sort((a, b) => b[1].qty - a[1].qty);
 
   return (
     <AppShell title="Ruang Kasir">
@@ -474,18 +530,76 @@ function KasirPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid max-h-[52vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-              {filtered.map((p) => (
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {filtered.length} menu
+              </p>
+              <div className="flex overflow-hidden rounded-lg border border-border">
                 <button
-                  key={p.id}
-                  onClick={() => addProduct(p)}
-                  className="rounded-2xl border border-border bg-card p-3 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-primary hover:shadow-brand"
+                  onClick={() => setView("card")}
+                  aria-label="Tampilan kartu"
+                  className={`px-3 py-1.5 ${view === "card" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
                 >
-                  <p className="line-clamp-2 text-sm font-semibold">{p.name}</p>
-                  <p className="mt-1 text-sm font-bold text-primary">{rupiah(Number(p.price))}</p>
-                  <p className="text-xs text-muted-foreground">Stok {Number(p.stock ?? 0)}</p>
+                  <LayoutGrid className="h-4 w-4" />
                 </button>
-              ))}
+                <button
+                  onClick={() => setView("list")}
+                  aria-label="Tampilan daftar"
+                  className={`px-3 py-1.5 ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div
+              className={
+                view === "card"
+                  ? "grid max-h-[52vh] grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4"
+                  : "max-h-[52vh] space-y-2 overflow-y-auto pr-1"
+              }
+            >
+              {filtered.map((p) => {
+                const n = qtyInCart(p.id);
+                const hitting = hit === p.id;
+                return view === "card" ? (
+                  <button
+                    key={p.id}
+                    onClick={() => addProduct(p)}
+                    className={`relative overflow-hidden rounded-2xl border bg-card p-2 text-left shadow-soft transition-transform duration-150 active:scale-95 ${
+                      hitting ? "scale-95 border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                    }`}
+                  >
+                    {n > 0 && (
+                      <span className="num absolute right-1.5 top-1.5 z-10 grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black text-primary-foreground shadow-brand">
+                        {num(n)}
+                      </span>
+                    )}
+                    <ProductImage path={p.image_url} alt={p.name} className="mb-1.5 h-16 w-full" />
+                    <p className="line-clamp-2 text-[12px] font-semibold leading-tight">{p.name}</p>
+                    <p className="num mt-0.5 text-[12px] font-bold text-primary">{rupiah(Number(p.price))}</p>
+                    <p className="num text-[10px] text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                  </button>
+                ) : (
+                  <button
+                    key={p.id}
+                    onClick={() => addProduct(p)}
+                    className={`flex w-full items-center gap-3 rounded-xl border bg-card px-3 py-2.5 text-left shadow-soft transition-transform duration-150 active:scale-[0.98] ${
+                      hitting ? "scale-[0.98] border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{p.name}</p>
+                      <p className="num text-xs text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                    </div>
+                    <span className="num text-sm font-bold text-primary">{rupiah(Number(p.price))}</span>
+                    {n > 0 && (
+                      <span className="num grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black text-primary-foreground">
+                        {num(n)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
               {filtered.length === 0 && (
                 <p className="col-span-full py-10 text-center text-sm text-muted-foreground">
                   Belum ada produk pada kategori ini. Tambahkan di menu Stok.
@@ -517,10 +631,12 @@ function KasirPage() {
                   ))}
                 </div>
               </div>
-              <div>
-                <Label className="text-xs">Uang diterima</Label>
-                <Input value={settlePaid} onChange={(e) => setSettlePaid(e.target.value)} inputMode="numeric" />
-              </div>
+              {settleMethod === "CASH" && (
+                <div>
+                  <Label className="text-xs">Uang diterima</Label>
+                  <Input value={settlePaid} onChange={(e) => setSettlePaid(e.target.value)} inputMode="numeric" />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <Button className="h-12" onClick={() => void confirmSettle()}>
                   Konfirmasi Lunas
@@ -542,19 +658,41 @@ function KasirPage() {
               </div>
               {cart.length === 0 && <p className="text-sm text-muted-foreground">Belum ada item.</p>}
               {cart.map((l, i) => (
-                <div key={i} className="flex items-center gap-2 border-b border-border/60 pb-2">
+                <div key={i} className="flex items-center gap-1.5 border-b border-border/60 pb-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{l.name}</p>
-                    <p className="text-xs text-muted-foreground">{rupiah(l.price)}</p>
+                    <p className="num text-xs text-muted-foreground">
+                      {rupiah(l.price)} · {rupiah(Math.round(l.price * l.qty))}
+                    </p>
                   </div>
-                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setQty(i, l.qty - 1)}>
+                  <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => setQty(i, l.qty - 1)}>
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-6 text-center text-sm font-semibold">{l.qty}</span>
-                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setQty(i, l.qty + 1)}>
+                  <Input
+                    aria-label={`Jumlah ${l.name}`}
+                    inputMode="decimal"
+                    className="num h-8 w-16 shrink-0 px-1 text-center text-sm font-semibold"
+                    value={qtyDraft[i] ?? num(l.qty)}
+                    onChange={(e) => setQtyDraft((d) => ({ ...d, [i]: e.target.value }))}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => {
+                      const raw = qtyDraft[i];
+                      setQtyDraft((d) => {
+                        const next = { ...d };
+                        delete next[i];
+                        return next;
+                      });
+                      if (raw == null) return;
+                      setQty(i, parseNum(raw));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                  />
+                  <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => setQty(i, l.qty + 1)}>
                     <Plus className="h-4 w-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setQty(i, 0)}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-destructive" onClick={() => setQty(i, 0)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -563,21 +701,30 @@ function KasirPage() {
               <Input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Nama pelanggan (opsional)" />
               <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Catatan / no. meja" />
 
-              <div className="flex items-center gap-2">
-                <Label className="w-20 shrink-0 text-xs">Diskon</Label>
-                <Input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" />
-                <div className="flex overflow-hidden rounded-lg border border-border">
-                  {(["Rp", "%"] as const).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setDiscPercent(s === "%")}
-                      className={`px-3 py-1.5 text-xs font-semibold ${
-                        discPercent === (s === "%") ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Diskon</Label>
+                <div className="flex items-stretch gap-2">
+                  <Input
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    inputMode="decimal"
+                    className="num h-10 min-w-0 flex-1"
+                  />
+                  <div className="grid shrink-0 grid-cols-2 overflow-hidden rounded-lg border border-border">
+                    {(["Rp", "%"] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setDiscPercent(s === "%")}
+                        className={`h-10 w-12 text-sm font-bold transition ${
+                          discPercent === (s === "%")
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -630,23 +777,27 @@ function KasirPage() {
                       </Button>
                     ))}
                   </div>
-                  <Input value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="numeric" placeholder="Uang diterima" />
-                  <div className="flex flex-wrap gap-1.5">
-                    {QUICK.map((v) => (
-                      <Button
-                        key={v}
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setPaid(String(parseNum(paid) + v))}
-                      >
-                        {v / 1000}k
-                      </Button>
-                    ))}
-                    <Button size="sm" variant="outline" onClick={() => setPaid(String(total))}>
-                      Uang pas
-                    </Button>
-                  </div>
-                  <Row label="Kembalian" value={rupiah(change)} />
+                  {method === "CASH" && (
+                    <>
+                      <Input value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="numeric" placeholder="Uang diterima" />
+                      <div className="flex flex-wrap gap-1.5">
+                        {QUICK.map((v) => (
+                          <Button
+                            key={v}
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPaid(String(parseNum(paid) + v))}
+                          >
+                            {v / 1000}k
+                          </Button>
+                        ))}
+                        <Button size="sm" variant="outline" onClick={() => setPaid(String(total))}>
+                          Uang pas
+                        </Button>
+                      </div>
+                      <Row label="Kembalian" value={rupiah(change)} />
+                    </>
+                  )}
                 </>
               )}
 
@@ -680,7 +831,10 @@ function KasirPage() {
               ).map((o) => (
                 <button
                   key={o.k}
-                  onClick={() => setKasType(o.k)}
+                  onClick={() => {
+                    setKasType(o.k);
+                    if (o.k !== "fill") setKasReset(false);
+                  }}
                   className={`rounded-lg py-2 text-sm font-semibold ${
                     kasType === o.k ? "brand-gradient text-primary-foreground" : "text-muted-foreground"
                   }`}
@@ -690,14 +844,20 @@ function KasirPage() {
               ))}
             </div>
             <Input value={kasAmount} onChange={(e) => setKasAmount(e.target.value)} inputMode="numeric" placeholder="Nominal" className="h-12" />
-            <Input value={kasNote} onChange={(e) => setKasNote(e.target.value)} placeholder="Catatan (mis. modal kembalian, beli gas)" />
-            <div className="flex items-start gap-2">
-              <Checkbox id="reset" checked={kasReset} onCheckedChange={(v) => setKasReset(!!v)} />
-              <Label htmlFor="reset" className="text-xs leading-5 text-muted-foreground">
-                <span className="font-semibold text-foreground">Reset saldo laci</span> — centang jika uang di laci sudah
-                diambil semua dan ingin menghitung ulang dari awal.
-              </Label>
-            </div>
+            <Input
+              value={kasNote}
+              onChange={(e) => setKasNote(e.target.value)}
+              placeholder={kasType === "fill" ? "Catatan (opsional)" : "Catatan wajib (mis. beli gas, setor ke bank)"}
+            />
+            {kasType === "fill" && (
+              <div className="flex items-start gap-2">
+                <Checkbox id="reset" checked={kasReset} onCheckedChange={(v) => setKasReset(!!v)} />
+                <Label htmlFor="reset" className="text-xs leading-5 text-muted-foreground">
+                  <span className="font-semibold text-foreground">Reset saldo laci</span> — centang jika uang di laci sudah
+                  diambil semua dan ingin menghitung ulang dari awal.
+                </Label>
+              </div>
+            )}
             <Button className="h-12 w-full font-semibold" onClick={() => void saveKas()}>
               Simpan
             </Button>
@@ -753,7 +913,7 @@ function KasirPage() {
       {/* ================= RIWAYAT ================= */}
       {tab === "riwayat" && (
         <div className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input value={hq} onChange={(e) => setHq(e.target.value)} placeholder="Cari transaksi/pelanggan…" className="h-11 rounded-xl" />
             <Select value={hstatus} onValueChange={setHstatus}>
               <SelectTrigger className="h-11 w-44 rounded-xl">
@@ -786,6 +946,28 @@ function KasirPage() {
             >
               <Download className="mr-2 h-4 w-4" /> CSV
             </Button>
+          </div>
+          <div className="flex flex-wrap items-end gap-2 rounded-2xl border border-border bg-card p-3 shadow-soft">
+            <div className="space-y-1">
+              <Label className="text-xs">Dari tanggal</Label>
+              <Input type="date" value={hfrom} onChange={(e) => setHfrom(e.target.value)} className="h-10" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Sampai tanggal</Label>
+              <Input type="date" value={hto} onChange={(e) => setHto(e.target.value)} className="h-10" />
+            </div>
+            {(hfrom || hto) && (
+              <Button
+                variant="ghost"
+                className="h-10"
+                onClick={() => {
+                  setHfrom("");
+                  setHto("");
+                }}
+              >
+                Reset tanggal
+              </Button>
+            )}
           </div>
 
           {riwayat.length === 0 && (
@@ -877,10 +1059,52 @@ function KasirPage() {
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <Stat label="Omzet" value={rupiah(omzet)} tone="brand" />
+            <Stat label="Piutang (bayar nanti)" value={rupiah(piutangRekap)} />
             <Stat label="Uang keluar" value={rupiah(uangKeluar)} tone="destructive" />
             <Stat label="Saldo kas laci" value={rupiah(saldoLaci)} tone="success" />
-            <Stat label="Transaksi" value={String(rekapPaid.length)} />
+            <Stat label="Transaksi" value={String(rekapSah.length)} />
             <Stat label="Void" value={String(rekapTx.filter((t) => t.status === "void").length)} tone="destructive" />
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="font-bold">Rincian Menu Terjual</p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  downloadCSV(
+                    "menu-terjual-bucici.csv",
+                    soldQty.map(([name, v]) => ({ menu: name, qty: v.qty, omzet: v.total })),
+                  )
+                }
+              >
+                <Download className="mr-2 h-4 w-4" /> CSV
+              </Button>
+            </div>
+            {soldQty.length === 0 && <p className="text-sm text-muted-foreground">Belum ada menu terjual pada periode ini.</p>}
+            <div className="x-scroll">
+              {soldQty.length > 0 && (
+                <table className="w-full min-w-[420px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                      <th className="py-1.5">Menu</th>
+                      <th className="py-1.5 text-right">Qty</th>
+                      <th className="py-1.5 text-right">Omzet</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {soldQty.map(([name, v]) => (
+                      <tr key={name} className="border-t border-border/60">
+                        <td className="py-1.5 pr-2">{name}</td>
+                        <td className="num py-1.5 text-right font-semibold">{num(v.qty)}</td>
+                        <td className="num py-1.5 text-right">{rupiah(v.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -925,13 +1149,19 @@ function KasirPage() {
               extra={tenant?.receipt_extra}
             />
           )}
-          <DialogFooter className="no-print grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => window.print()}>
-              <Printer className="mr-2 h-4 w-4" /> Cetak
-            </Button>
-            <Button onClick={shareReceipt}>
-              <Share2 className="mr-2 h-4 w-4" /> Bagikan
-            </Button>
+          <DialogFooter className="no-print">
+            {receipt && (
+              <ReceiptActions
+                data={receipt}
+                shop={{
+                  header: tenant?.receipt_header || tenant?.business_name || "BUCICI",
+                  address: tenant?.receipt_address ?? "",
+                  phone: tenant?.receipt_phone ?? "",
+                  footer: tenant?.receipt_footer ?? "",
+                  extra: tenant?.receipt_extra ?? "",
+                }}
+              />
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
