@@ -428,10 +428,15 @@ function KasirPage() {
   /* ---------------- riwayat filter ---------------- */
   const [hq, setHq] = useState("");
   const [hstatus, setHstatus] = useState("all");
+  const [hfrom, setHfrom] = useState("");
+  const [hto, setHto] = useState("");
   const riwayat = history.filter((t) => {
     const okS = hstatus === "all" || t.status === hstatus;
     const okQ = [t.code, t.customer_name ?? ""].join(" ").toLowerCase().includes(hq.trim().toLowerCase());
-    return okS && okQ;
+    const d = new Date(t.created_at);
+    const okFrom = !hfrom || d >= new Date(`${hfrom}T00:00:00`);
+    const okTo = !hto || d <= new Date(`${hto}T23:59:59`);
+    return okS && okQ && okFrom && okTo;
   });
 
   /* ---------------- rekapan ---------------- */
@@ -445,7 +450,10 @@ function KasirPage() {
   }, [period]);
   const rekapTx = history.filter((t) => (rekapFrom ? t.created_at >= rekapFrom : true));
   const rekapPaid = rekapTx.filter((t) => t.status === "paid");
-  const omzet = rekapPaid.reduce((s, t) => s + Number(t.total), 0);
+  // Omzet mencakup transaksi lunas DAN bayar nanti (piutang), kecuali yang dibatalkan.
+  const rekapSah = rekapTx.filter((t) => t.status !== "void");
+  const omzet = rekapSah.reduce((s, t) => s + Number(t.total), 0);
+  const piutangRekap = rekapTx.filter((t) => t.status === "unpaid").reduce((s, t) => s + Number(t.total), 0);
   const uangKeluar = cash
     .filter((c) => c.type === "out" && (rekapFrom ? c.created_at >= rekapFrom : true))
     .reduce((s, c) => s + Number(c.amount), 0);
@@ -457,12 +465,39 @@ function KasirPage() {
     }, {}),
   );
   const byCashier = Object.entries(
-    rekapPaid.reduce<Record<string, { total: number; n: number }>>((acc, t) => {
+    rekapSah.reduce<Record<string, { total: number; n: number }>>((acc, t) => {
       const k = t.cashier_name ?? "-";
       acc[k] = { total: (acc[k]?.total ?? 0) + Number(t.total), n: (acc[k]?.n ?? 0) + 1 };
       return acc;
     }, {}),
   );
+
+  /* rincian qty menu terjual pada periode rekap */
+  const { data: rekapItems = [] } = useQuery({
+    queryKey: ["transaction_items", tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("transaction_items")
+        .select("name,qty,price,transaction_id,created_at")
+        .eq("tenant_id", tenantId!)
+        .limit(5000);
+      return data ?? [];
+    },
+  });
+  const sahIds = new Set(rekapSah.map((t) => t.id));
+  const soldQty = Object.entries(
+    rekapItems
+      .filter((i) => sahIds.has(i.transaction_id))
+      .reduce<Record<string, { qty: number; total: number }>>((acc, i) => {
+        const k = i.name;
+        acc[k] = {
+          qty: (acc[k]?.qty ?? 0) + Number(i.qty),
+          total: (acc[k]?.total ?? 0) + Number(i.qty) * Number(i.price),
+        };
+        return acc;
+      }, {}),
+  ).sort((a, b) => b[1].qty - a[1].qty);
 
   return (
     <AppShell title="Ruang Kasir">
