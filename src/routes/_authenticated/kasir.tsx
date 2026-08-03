@@ -808,7 +808,10 @@ function KasirPage() {
               ).map((o) => (
                 <button
                   key={o.k}
-                  onClick={() => setKasType(o.k)}
+                  onClick={() => {
+                    setKasType(o.k);
+                    if (o.k !== "fill") setKasReset(false);
+                  }}
                   className={`rounded-lg py-2 text-sm font-semibold ${
                     kasType === o.k ? "brand-gradient text-primary-foreground" : "text-muted-foreground"
                   }`}
@@ -818,14 +821,20 @@ function KasirPage() {
               ))}
             </div>
             <Input value={kasAmount} onChange={(e) => setKasAmount(e.target.value)} inputMode="numeric" placeholder="Nominal" className="h-12" />
-            <Input value={kasNote} onChange={(e) => setKasNote(e.target.value)} placeholder="Catatan (mis. modal kembalian, beli gas)" />
-            <div className="flex items-start gap-2">
-              <Checkbox id="reset" checked={kasReset} onCheckedChange={(v) => setKasReset(!!v)} />
-              <Label htmlFor="reset" className="text-xs leading-5 text-muted-foreground">
-                <span className="font-semibold text-foreground">Reset saldo laci</span> — centang jika uang di laci sudah
-                diambil semua dan ingin menghitung ulang dari awal.
-              </Label>
-            </div>
+            <Input
+              value={kasNote}
+              onChange={(e) => setKasNote(e.target.value)}
+              placeholder={kasType === "fill" ? "Catatan (opsional)" : "Catatan wajib (mis. beli gas, setor ke bank)"}
+            />
+            {kasType === "fill" && (
+              <div className="flex items-start gap-2">
+                <Checkbox id="reset" checked={kasReset} onCheckedChange={(v) => setKasReset(!!v)} />
+                <Label htmlFor="reset" className="text-xs leading-5 text-muted-foreground">
+                  <span className="font-semibold text-foreground">Reset saldo laci</span> — centang jika uang di laci sudah
+                  diambil semua dan ingin menghitung ulang dari awal.
+                </Label>
+              </div>
+            )}
             <Button className="h-12 w-full font-semibold" onClick={() => void saveKas()}>
               Simpan
             </Button>
