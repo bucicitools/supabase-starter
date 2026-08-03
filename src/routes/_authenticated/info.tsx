@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { AIChat } from "@/components/AIChat";
@@ -24,7 +24,11 @@ function InfoPage() {
   const { data: posts = [] } = useQuery({
     queryKey: ["info_posts"],
     queryFn: async () => {
-      const { data } = await supabase.from("info_posts").select("*").order("created_at", { ascending: false });
+      const { data } = await supabase
+        .from("info_posts")
+        .select("*")
+        .order("is_pinned", { ascending: false })
+        .order("created_at", { ascending: false });
       return data ?? [];
     },
   });
@@ -52,7 +56,15 @@ function InfoPage() {
           {posts.map((p) => {
             const embed = youtubeEmbed(p.link);
             return (
-            <article key={p.id} className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <article
+              key={p.id}
+              className={`rounded-2xl border bg-card p-4 shadow-soft ${p.is_pinned ? "border-primary/50 ring-1 ring-primary/20" : "border-border"}`}
+            >
+              {p.is_pinned && (
+                <p className="mb-1 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                  <Pin className="h-3 w-3" /> Disematkan
+                </p>
+              )}
               <h2 className="font-bold">{p.title}</h2>
               <p className="text-xs text-muted-foreground">{dateID(p.created_at)}</p>
               <p className="mt-2 whitespace-pre-wrap text-sm">{p.content}</p>
