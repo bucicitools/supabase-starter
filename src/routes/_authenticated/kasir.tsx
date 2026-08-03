@@ -400,12 +400,17 @@ function KasirPage() {
       toast.error("Isi nominal dulu");
       return;
     }
+    if (kasType !== "fill" && !kasNote.trim()) {
+      toast.error("Catatan wajib diisi", { description: "Tulis keterangan uang masuk/keluar." });
+      return;
+    }
+    const isReset = kasType === "fill" ? kasReset : false;
     const { error } = await supabase.from("cash_entries").insert({
       tenant_id: tenantId,
       type: kasType,
       amount: value,
       note: kasNote.trim() || null,
-      is_reset: kasReset,
+      is_reset: isReset,
       created_by: profile?.id ?? null,
       created_by_name: profile?.full_name ?? null,
     });
