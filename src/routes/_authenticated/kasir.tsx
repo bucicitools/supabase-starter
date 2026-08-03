@@ -352,17 +352,6 @@ function KasirPage() {
     });
   }
 
-  function shareReceipt() {
-    if (!receipt) return;
-    const text = receiptText(
-      receipt,
-      tenant?.receipt_header ?? tenant?.business_name,
-      tenant?.receipt_address,
-      tenant?.receipt_footer,
-    );
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener");
-  }
-
   /* ---------------- kas laci ---------------- */
   const lastReset = useMemo(() => {
     const r = [...cash].filter((c) => c.is_reset).sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
