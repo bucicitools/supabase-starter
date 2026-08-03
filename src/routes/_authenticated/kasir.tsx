@@ -487,18 +487,76 @@ function KasirPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid max-h-[52vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
-              {filtered.map((p) => (
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {filtered.length} menu
+              </p>
+              <div className="flex overflow-hidden rounded-lg border border-border">
                 <button
-                  key={p.id}
-                  onClick={() => addProduct(p)}
-                  className="rounded-2xl border border-border bg-card p-3 text-left shadow-soft transition hover:-translate-y-0.5 hover:border-primary hover:shadow-brand"
+                  onClick={() => setView("card")}
+                  aria-label="Tampilan kartu"
+                  className={`px-3 py-1.5 ${view === "card" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
                 >
-                  <p className="line-clamp-2 text-sm font-semibold">{p.name}</p>
-                  <p className="mt-1 text-sm font-bold text-primary">{rupiah(Number(p.price))}</p>
-                  <p className="text-xs text-muted-foreground">Stok {Number(p.stock ?? 0)}</p>
+                  <LayoutGrid className="h-4 w-4" />
                 </button>
-              ))}
+                <button
+                  onClick={() => setView("list")}
+                  aria-label="Tampilan daftar"
+                  className={`px-3 py-1.5 ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div
+              className={
+                view === "card"
+                  ? "grid max-h-[52vh] grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4"
+                  : "max-h-[52vh] space-y-2 overflow-y-auto pr-1"
+              }
+            >
+              {filtered.map((p) => {
+                const n = qtyInCart(p.id);
+                const hitting = hit === p.id;
+                return view === "card" ? (
+                  <button
+                    key={p.id}
+                    onClick={() => addProduct(p)}
+                    className={`relative overflow-hidden rounded-2xl border bg-card p-2 text-left shadow-soft transition-transform duration-150 active:scale-95 ${
+                      hitting ? "scale-95 border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                    }`}
+                  >
+                    {n > 0 && (
+                      <span className="num absolute right-1.5 top-1.5 z-10 grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black text-primary-foreground shadow-brand">
+                        {num(n)}
+                      </span>
+                    )}
+                    <ProductImage path={p.image_url} alt={p.name} className="mb-1.5 h-16 w-full" />
+                    <p className="line-clamp-2 text-[12px] font-semibold leading-tight">{p.name}</p>
+                    <p className="num mt-0.5 text-[12px] font-bold text-primary">{rupiah(Number(p.price))}</p>
+                    <p className="num text-[10px] text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                  </button>
+                ) : (
+                  <button
+                    key={p.id}
+                    onClick={() => addProduct(p)}
+                    className={`flex w-full items-center gap-3 rounded-xl border bg-card px-3 py-2.5 text-left shadow-soft transition-transform duration-150 active:scale-[0.98] ${
+                      hitting ? "scale-[0.98] border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                    }`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{p.name}</p>
+                      <p className="num text-xs text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                    </div>
+                    <span className="num text-sm font-bold text-primary">{rupiah(Number(p.price))}</span>
+                    {n > 0 && (
+                      <span className="num grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black text-primary-foreground">
+                        {num(n)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
               {filtered.length === 0 && (
                 <p className="col-span-full py-10 text-center text-sm text-muted-foreground">
                   Belum ada produk pada kategori ini. Tambahkan di menu Stok.
