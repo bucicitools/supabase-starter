@@ -614,19 +614,41 @@ function KasirPage() {
               </div>
               {cart.length === 0 && <p className="text-sm text-muted-foreground">Belum ada item.</p>}
               {cart.map((l, i) => (
-                <div key={i} className="flex items-center gap-2 border-b border-border/60 pb-2">
+                <div key={i} className="flex items-center gap-1.5 border-b border-border/60 pb-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{l.name}</p>
-                    <p className="text-xs text-muted-foreground">{rupiah(l.price)}</p>
+                    <p className="num text-xs text-muted-foreground">
+                      {rupiah(l.price)} · {rupiah(Math.round(l.price * l.qty))}
+                    </p>
                   </div>
-                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setQty(i, l.qty - 1)}>
+                  <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => setQty(i, l.qty - 1)}>
                     <Minus className="h-4 w-4" />
                   </Button>
-                  <span className="w-6 text-center text-sm font-semibold">{l.qty}</span>
-                  <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => setQty(i, l.qty + 1)}>
+                  <Input
+                    aria-label={`Jumlah ${l.name}`}
+                    inputMode="decimal"
+                    className="num h-8 w-16 shrink-0 px-1 text-center text-sm font-semibold"
+                    value={qtyDraft[i] ?? num(l.qty)}
+                    onChange={(e) => setQtyDraft((d) => ({ ...d, [i]: e.target.value }))}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => {
+                      const raw = qtyDraft[i];
+                      setQtyDraft((d) => {
+                        const next = { ...d };
+                        delete next[i];
+                        return next;
+                      });
+                      if (raw == null) return;
+                      setQty(i, parseNum(raw));
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") e.currentTarget.blur();
+                    }}
+                  />
+                  <Button size="icon" variant="outline" className="h-8 w-8 shrink-0" onClick={() => setQty(i, l.qty + 1)}>
                     <Plus className="h-4 w-4" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => setQty(i, 0)}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-destructive" onClick={() => setQty(i, 0)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
