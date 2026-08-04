@@ -308,7 +308,14 @@ function KasirPage() {
   }
 
   async function voidTx(id: string) {
-    const reason = window.prompt("Alasan pembatalan?") ?? "";
+    const reason = await dialog.prompt({
+      title: "Batalkan Transaksi?",
+      description: "Stok seluruh item akan dikembalikan.",
+      label: "Alasan pembatalan",
+      placeholder: "Mis. salah input",
+      confirmText: "Batalkan Transaksi",
+    });
+    if (reason === null) return;
     // Kembalikan stok seluruh item transaksi yang dibatalkan.
     const { data: items } = await supabase
       .from("transaction_items")
