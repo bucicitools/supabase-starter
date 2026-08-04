@@ -367,6 +367,57 @@ function SettingsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editMember} onOpenChange={(o) => !o && setEditMember(null)}>
+        <DialogContent className="max-w-[360px] rounded-3xl">
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-base font-bold">Hak Akses — {editMember?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {TOOL_KEYS.map((k) => {
+              const on = editMember?.tools.includes(k) ?? false;
+              return (
+                <button
+                  key={k}
+                  onClick={() =>
+                    setEditMember((s) =>
+                      s ? { ...s, tools: on ? s.tools.filter((x) => x !== k) : [...s.tools, k] } : s,
+                    )
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ${
+                    on ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-foreground"
+                  }`}
+                >
+                  {k}
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:grid-cols-2">
+            <Button variant="outline" className="w-full" onClick={() => setEditMember(null)}>
+              Batal
+            </Button>
+            <Button
+              className="w-full"
+              onClick={async () => {
+                if (!editMember) return;
+                const res = await updateMemberAccess({
+                  data: { userId: editMember.id, fullName: editMember.name, allowedTools: editMember.tools },
+                });
+                if (!res.ok) {
+                  toast.error(res.error);
+                  return;
+                }
+                setEditMember(null);
+                void qc.invalidateQueries({ queryKey: ["members", tenantId] });
+                toast.success("Hak akses diperbarui");
+              }}
+            >
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
