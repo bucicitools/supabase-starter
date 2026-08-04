@@ -176,7 +176,7 @@ function DashboardPage() {
             </p>
             <p className="mt-1 text-sm font-semibold leading-tight text-foreground">Belum bisa dihitung</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {s?.missingCost} unit produk terjual hari ini belum punya harga modal.
+              {s?.missingCost} item produk terjual hari ini belum punya harga modal.
             </p>
             <Button asChild size="sm" variant="outline" className="mt-2 h-8 w-full text-xs">
               <Link to="/stok" search={{ filter: "nomodal" }}>
