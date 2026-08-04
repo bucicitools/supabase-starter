@@ -174,7 +174,30 @@ function SettingsPage() {
         <TabsContent value="toko" className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_320px]">
           <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
           <F label="Nama toko" value={store.business_name} onChange={(v) => setStore({ ...store, business_name: v })} />
-          <F label="Pajak default (%)" value={store.default_tax} onChange={(v) => setStore({ ...store, default_tax: v })} />
+
+          <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Pajak Penjualan</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Jika aktif, kasir otomatis mencentang pajak (masih bisa dimatikan manual per transaksi).
+                </p>
+              </div>
+              <Switch
+                checked={taxOn}
+                onCheckedChange={(v) => {
+                  setTaxOn(v);
+                  if (!v) setStore((s) => ({ ...s, default_tax: "0" }));
+                  else if (Number(store.default_tax || 0) <= 0) setStore((s) => ({ ...s, default_tax: "10" }));
+                }}
+              />
+            </div>
+            {taxOn && (
+              <F label="Default pajak (%)" value={store.default_tax} onChange={(v) => setStore({ ...store, default_tax: v })} />
+            )}
+          </div>
+
+          <p className="pt-1 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Format Struk</p>
           <F label="Judul struk" value={store.receipt_header} onChange={(v) => setStore({ ...store, receipt_header: v })} />
           <F label="Alamat struk" value={store.receipt_address} onChange={(v) => setStore({ ...store, receipt_address: v })} />
           <F label="Telepon struk" value={store.receipt_phone} onChange={(v) => setStore({ ...store, receipt_phone: v })} />
