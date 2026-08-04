@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { createMember, deleteMember, updateMemberAccess, wipeFinancialData } from "@/lib/account.functions";
 import { Receipt, type ReceiptData } from "@/components/Receipt";
+import { useAppDialog } from "@/components/app-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,11 +53,14 @@ const PREVIEW: ReceiptData = {
 
 function SettingsPage() {
   const { tenant, profile, role, refresh } = useAuth();
+  const dialog = useAppDialog();
   const qc = useQueryClient();
   const tenantId = tenant?.id;
   const isOwner = role === "owner" || role === "super_admin";
 
   const [dark, setDark] = useState(false);
+  const [taxOn, setTaxOn] = useState(false);
+  const [editMember, setEditMember] = useState<{ id: string; name: string; tools: string[] } | null>(null);
   const [store, setStore] = useState({
     business_name: "",
     default_tax: "0",
@@ -79,6 +84,7 @@ function SettingsPage() {
 
   useEffect(() => {
     if (!tenant) return;
+    setTaxOn(Number(tenant.default_tax ?? 0) > 0);
     setStore({
       business_name: tenant.business_name ?? "",
       default_tax: String(tenant.default_tax ?? 0),
@@ -115,7 +121,7 @@ function SettingsPage() {
       .from("tenants")
       .update({
         business_name: store.business_name.trim(),
-        default_tax: Number(store.default_tax || 0),
+        default_tax: taxOn ? Number(store.default_tax || 0) : 0,
         receipt_header: store.receipt_header.trim() || null,
         receipt_address: store.receipt_address.trim() || null,
         receipt_phone: store.receipt_phone.trim() || null,
