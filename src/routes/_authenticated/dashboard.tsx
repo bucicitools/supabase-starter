@@ -169,7 +169,24 @@ function DashboardPage() {
       <SectionTitle>Ringkasan Finansial Hari Ini</SectionTitle>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card icon={ReceiptIcon} label="Omzet Kotor" value={rupiah(s?.omzet ?? 0)} tone="primary" />
-        <Card icon={Calculator} label="HPP Produk Terjual" value={rupiah(s?.hpp ?? 0)} tone="warning" />
+        {belumLengkap ? (
+          <div className="rounded-2xl border border-warning/40 bg-warning/10 p-4">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-warning">
+              <Calculator className="h-3.5 w-3.5 shrink-0" /> HPP Produk Terjual
+            </p>
+            <p className="mt-1 text-sm font-semibold leading-tight text-foreground">Belum bisa dihitung</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {s?.missingCost} unit produk terjual hari ini belum punya harga modal.
+            </p>
+            <Button asChild size="sm" variant="outline" className="mt-2 h-8 w-full text-xs">
+              <Link to="/stok" search={{ filter: "nomodal" }}>
+                Lengkapi Sekarang
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <Card icon={Calculator} label="HPP Produk Terjual" value={rupiah(s?.hpp ?? 0)} tone="warning" />
+        )}
         <Card icon={HandCoins} label="Pengeluaran Hari Ini" value={rupiah(s?.keluarHariIni ?? 0)} tone="destructive" />
         <Card icon={Wallet} label="Uang Tunai di Laci" value={rupiah(s?.laci ?? 0)} tone="success" />
       </div>
