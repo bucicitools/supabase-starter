@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -23,6 +23,7 @@ import { dateTimeID, downloadCSV, rupiah, txCode, parseNum, num } from "@/lib/fo
 import { Receipt, StatusBadge, type ReceiptData } from "@/components/Receipt";
 import { ReceiptActions } from "@/components/ReceiptActions";
 import { ProductImage } from "@/components/ProductImage";
+import { useAppDialog } from "@/components/app-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +59,7 @@ const QUICK = [5000, 10000, 20000, 50000, 100000];
 
 function KasirPage() {
   const { tenant, profile } = useAuth();
+  const dialog = useAppDialog();
   const qc = useQueryClient();
   const tenantId = tenant?.id;
   const [tab, setTab] = useState<TabKey>("pos");
