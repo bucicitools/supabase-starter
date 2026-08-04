@@ -223,7 +223,13 @@ function SettingsPage() {
                 variant="destructive"
                 className="mt-3 w-full"
                 onClick={async () => {
-                  if (!window.confirm("Hapus SELURUH data keuangan (transaksi & kas)? Tindakan ini tidak bisa dibatalkan.")) return;
+                  const ok = await dialog.confirm({
+                    title: "Hapus Seluruh Data Keuangan?",
+                    description: "Seluruh transaksi, item transaksi, dan catatan kas laci akan dihapus permanen.",
+                    confirmText: "Hapus",
+                    destructive: true,
+                  });
+                  if (!ok) return;
                   const res = await wipeFinancialData();
                   if (!res.ok) {
                     toast.error(res.error);
@@ -308,27 +314,13 @@ function SettingsPage() {
                       size="icon"
                       variant="ghost"
                       aria-label="Edit hak akses"
-                      onClick={async () => {
-                        const current = m.allowed_tools?.length ? m.allowed_tools : m.allowed_tool ? [m.allowed_tool] : [];
-                        const raw = window.prompt(
-                          `Hak akses untuk ${m.full_name}\nPilihan: ${TOOL_KEYS.join(", ")}\nPisahkan dengan koma.`,
-                          current.join(", "),
-                        );
-                        if (raw == null) return;
-                        const tools = raw
-                          .split(",")
-                          .map((x) => x.trim().toLowerCase())
-                          .filter((x) => TOOL_KEYS.includes(x));
-                        const res = await updateMemberAccess({
-                          data: { userId: m.id, fullName: m.full_name, allowedTools: tools },
-                        });
-                        if (!res.ok) {
-                          toast.error(res.error);
-                          return;
-                        }
-                        void qc.invalidateQueries({ queryKey: ["members", tenantId] });
-                        toast.success("Hak akses diperbarui");
-                      }}
+                      onClick={() =>
+                        setEditMember({
+                          id: m.id,
+                          name: m.full_name,
+                          tools: m.allowed_tools?.length ? [...m.allowed_tools] : m.allowed_tool ? [m.allowed_tool] : [],
+                        })
+                      }
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -338,6 +330,13 @@ function SettingsPage() {
                         variant="ghost"
                         className="text-destructive"
                         onClick={async () => {
+                          const ok = await dialog.confirm({
+                            title: "Hapus Anggota?",
+                            description: `${m.full_name} tidak akan bisa login lagi.`,
+                            confirmText: "Hapus",
+                            destructive: true,
+                          });
+                          if (!ok) return;
                           const res = await deleteMember({ data: { userId: m.id } });
                           if (!res.ok) {
                             toast.error(res.error);
