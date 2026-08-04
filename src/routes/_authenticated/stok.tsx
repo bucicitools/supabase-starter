@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { ProductImage } from "@/components/ProductImage";
+import { useAppDialog } from "@/components/app-dialog";
 import { downloadCSV, num, rupiah } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,7 @@ const emptyProduct = { name: "", price: "", cost: "", stock: "", sku: "", low: "
 
 function StokPage() {
   const { tenant, profile } = useAuth();
+  const dialog = useAppDialog();
   const { filter } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const qc = useQueryClient();
@@ -196,7 +198,13 @@ function StokPage() {
   }
 
   async function move(itemId: string, direction: "in" | "out", currentQty: number) {
-    const raw = window.prompt(direction === "in" ? "Jumlah masuk?" : "Jumlah keluar?");
+    const raw = await dialog.prompt({
+      title: direction === "in" ? "Barang Masuk" : "Barang Keluar",
+      label: "Jumlah",
+      placeholder: "0",
+      inputMode: "decimal",
+    });
+    if (raw === null) return;
     const qty = Number(raw ?? 0);
     if (!qty) return;
     await supabase.from("stock_movements").insert({
@@ -371,9 +379,16 @@ function StokPage() {
                     className="text-destructive"
                     aria-label="Hapus produk"
                     onClick={async () => {
-                      if (!window.confirm(`Hapus produk ${x.name}?`)) return;
+                      const ok = await dialog.confirm({
+                        title: "Hapus Produk?",
+                        description: `Produk "${x.name}" akan dihapus permanen.`,
+                        confirmText: "Hapus",
+                        destructive: true,
+                      });
+                      if (!ok) return;
                       await supabase.from("products").delete().eq("id", x.id);
                       void qc.invalidateQueries({ queryKey: ["products", tenantId] });
+                      toast.success("Produk dihapus");
                     }}
                   >
                     <Trash2 className="h-4 w-4" />

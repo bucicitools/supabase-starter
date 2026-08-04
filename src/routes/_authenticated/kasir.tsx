@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -23,6 +23,7 @@ import { dateTimeID, downloadCSV, rupiah, txCode, parseNum, num } from "@/lib/fo
 import { Receipt, StatusBadge, type ReceiptData } from "@/components/Receipt";
 import { ReceiptActions } from "@/components/ReceiptActions";
 import { ProductImage } from "@/components/ProductImage";
+import { useAppDialog } from "@/components/app-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +59,7 @@ const QUICK = [5000, 10000, 20000, 50000, 100000];
 
 function KasirPage() {
   const { tenant, profile } = useAuth();
+  const dialog = useAppDialog();
   const qc = useQueryClient();
   const tenantId = tenant?.id;
   const [tab, setTab] = useState<TabKey>("pos");
@@ -131,6 +133,13 @@ function KasirPage() {
   const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qtyInCart = (id: string) => cart.find((l) => l.productId === id)?.qty ?? 0;
+
+  // Pajak default toko: saat pengaturan pajak ON (default_tax > 0), centang otomatis.
+  const defaultTax = Number(tenant?.default_tax ?? 0);
+  useEffect(() => {
+    setTaxPercent(String(defaultTax));
+    setUseTax(defaultTax > 0);
+  }, [defaultTax]);
 
   const filtered = useMemo(
     () =>
@@ -308,7 +317,14 @@ function KasirPage() {
   }
 
   async function voidTx(id: string) {
-    const reason = window.prompt("Alasan pembatalan?") ?? "";
+    const reason = await dialog.prompt({
+      title: "Batalkan Transaksi?",
+      description: "Stok seluruh item akan dikembalikan.",
+      label: "Alasan pembatalan",
+      placeholder: "Mis. salah input",
+      confirmText: "Batalkan Transaksi",
+    });
+    if (reason === null) return;
     // Kembalikan stok seluruh item transaksi yang dibatalkan.
     const { data: items } = await supabase
       .from("transaction_items")

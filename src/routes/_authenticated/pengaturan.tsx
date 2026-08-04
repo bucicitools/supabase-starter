@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { createMember, deleteMember, updateMemberAccess, wipeFinancialData } from "@/lib/account.functions";
 import { Receipt, type ReceiptData } from "@/components/Receipt";
+import { useAppDialog } from "@/components/app-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,11 +53,14 @@ const PREVIEW: ReceiptData = {
 
 function SettingsPage() {
   const { tenant, profile, role, refresh } = useAuth();
+  const dialog = useAppDialog();
   const qc = useQueryClient();
   const tenantId = tenant?.id;
   const isOwner = role === "owner" || role === "super_admin";
 
   const [dark, setDark] = useState(false);
+  const [taxOn, setTaxOn] = useState(false);
+  const [editMember, setEditMember] = useState<{ id: string; name: string; tools: string[] } | null>(null);
   const [store, setStore] = useState({
     business_name: "",
     default_tax: "0",
@@ -79,6 +84,7 @@ function SettingsPage() {
 
   useEffect(() => {
     if (!tenant) return;
+    setTaxOn(Number(tenant.default_tax ?? 0) > 0);
     setStore({
       business_name: tenant.business_name ?? "",
       default_tax: String(tenant.default_tax ?? 0),
@@ -115,7 +121,7 @@ function SettingsPage() {
       .from("tenants")
       .update({
         business_name: store.business_name.trim(),
-        default_tax: Number(store.default_tax || 0),
+        default_tax: taxOn ? Number(store.default_tax || 0) : 0,
         receipt_header: store.receipt_header.trim() || null,
         receipt_address: store.receipt_address.trim() || null,
         receipt_phone: store.receipt_phone.trim() || null,
@@ -168,7 +174,30 @@ function SettingsPage() {
         <TabsContent value="toko" className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_320px]">
           <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
           <F label="Nama toko" value={store.business_name} onChange={(v) => setStore({ ...store, business_name: v })} />
-          <F label="Pajak default (%)" value={store.default_tax} onChange={(v) => setStore({ ...store, default_tax: v })} />
+
+          <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">Pajak Penjualan</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Jika aktif, kasir otomatis mencentang pajak (masih bisa dimatikan manual per transaksi).
+                </p>
+              </div>
+              <Switch
+                checked={taxOn}
+                onCheckedChange={(v) => {
+                  setTaxOn(v);
+                  if (!v) setStore((s) => ({ ...s, default_tax: "0" }));
+                  else if (Number(store.default_tax || 0) <= 0) setStore((s) => ({ ...s, default_tax: "10" }));
+                }}
+              />
+            </div>
+            {taxOn && (
+              <F label="Default pajak (%)" value={store.default_tax} onChange={(v) => setStore({ ...store, default_tax: v })} />
+            )}
+          </div>
+
+          <p className="pt-1 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Format Struk</p>
           <F label="Judul struk" value={store.receipt_header} onChange={(v) => setStore({ ...store, receipt_header: v })} />
           <F label="Alamat struk" value={store.receipt_address} onChange={(v) => setStore({ ...store, receipt_address: v })} />
           <F label="Telepon struk" value={store.receipt_phone} onChange={(v) => setStore({ ...store, receipt_phone: v })} />
@@ -194,7 +223,13 @@ function SettingsPage() {
                 variant="destructive"
                 className="mt-3 w-full"
                 onClick={async () => {
-                  if (!window.confirm("Hapus SELURUH data keuangan (transaksi & kas)? Tindakan ini tidak bisa dibatalkan.")) return;
+                  const ok = await dialog.confirm({
+                    title: "Hapus Seluruh Data Keuangan?",
+                    description: "Seluruh transaksi, item transaksi, dan catatan kas laci akan dihapus permanen.",
+                    confirmText: "Hapus",
+                    destructive: true,
+                  });
+                  if (!ok) return;
                   const res = await wipeFinancialData();
                   if (!res.ok) {
                     toast.error(res.error);
@@ -279,27 +314,13 @@ function SettingsPage() {
                       size="icon"
                       variant="ghost"
                       aria-label="Edit hak akses"
-                      onClick={async () => {
-                        const current = m.allowed_tools?.length ? m.allowed_tools : m.allowed_tool ? [m.allowed_tool] : [];
-                        const raw = window.prompt(
-                          `Hak akses untuk ${m.full_name}\nPilihan: ${TOOL_KEYS.join(", ")}\nPisahkan dengan koma.`,
-                          current.join(", "),
-                        );
-                        if (raw == null) return;
-                        const tools = raw
-                          .split(",")
-                          .map((x) => x.trim().toLowerCase())
-                          .filter((x) => TOOL_KEYS.includes(x));
-                        const res = await updateMemberAccess({
-                          data: { userId: m.id, fullName: m.full_name, allowedTools: tools },
-                        });
-                        if (!res.ok) {
-                          toast.error(res.error);
-                          return;
-                        }
-                        void qc.invalidateQueries({ queryKey: ["members", tenantId] });
-                        toast.success("Hak akses diperbarui");
-                      }}
+                      onClick={() =>
+                        setEditMember({
+                          id: m.id,
+                          name: m.full_name,
+                          tools: m.allowed_tools?.length ? [...m.allowed_tools] : m.allowed_tool ? [m.allowed_tool] : [],
+                        })
+                      }
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -309,6 +330,13 @@ function SettingsPage() {
                         variant="ghost"
                         className="text-destructive"
                         onClick={async () => {
+                          const ok = await dialog.confirm({
+                            title: "Hapus Anggota?",
+                            description: `${m.full_name} tidak akan bisa login lagi.`,
+                            confirmText: "Hapus",
+                            destructive: true,
+                          });
+                          if (!ok) return;
                           const res = await deleteMember({ data: { userId: m.id } });
                           if (!res.ok) {
                             toast.error(res.error);
@@ -339,6 +367,57 @@ function SettingsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editMember} onOpenChange={(o) => !o && setEditMember(null)}>
+        <DialogContent className="max-w-[360px] rounded-3xl">
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-base font-bold">Hak Akses — {editMember?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            {TOOL_KEYS.map((k) => {
+              const on = editMember?.tools.includes(k) ?? false;
+              return (
+                <button
+                  key={k}
+                  onClick={() =>
+                    setEditMember((s) =>
+                      s ? { ...s, tools: on ? s.tools.filter((x) => x !== k) : [...s.tools, k] } : s,
+                    )
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium capitalize ${
+                    on ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-foreground"
+                  }`}
+                >
+                  {k}
+                </button>
+              );
+            })}
+          </div>
+          <DialogFooter className="grid grid-cols-2 gap-2 sm:grid-cols-2">
+            <Button variant="outline" className="w-full" onClick={() => setEditMember(null)}>
+              Batal
+            </Button>
+            <Button
+              className="w-full"
+              onClick={async () => {
+                if (!editMember) return;
+                const res = await updateMemberAccess({
+                  data: { userId: editMember.id, fullName: editMember.name, allowedTools: editMember.tools },
+                });
+                if (!res.ok) {
+                  toast.error(res.error);
+                  return;
+                }
+                setEditMember(null);
+                void qc.invalidateQueries({ queryKey: ["members", tenantId] });
+                toast.success("Hak akses diperbarui");
+              }}
+            >
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

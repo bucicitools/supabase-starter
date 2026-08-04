@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../lib/auth";
 import { Toaster } from "../components/ui/sonner";
+import { AppDialogProvider } from "../components/app-dialog";
 
 function NotFoundComponent() {
   return (
@@ -135,8 +136,23 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster position="top-center" richColors />
+        <AppDialogProvider>
+          <Outlet />
+        </AppDialogProvider>
+        <Toaster
+          position="top-center"
+          richColors
+          expand
+          closeButton={false}
+          toastOptions={{
+            classNames: {
+              toast:
+                "rounded-2xl border border-border shadow-soft px-4 py-3 text-sm font-medium w-[calc(100vw-2rem)] sm:w-[360px]",
+              title: "font-semibold",
+              description: "text-xs opacity-90",
+            },
+          }}
+        />
       </AuthProvider>
     </QueryClientProvider>
   );
