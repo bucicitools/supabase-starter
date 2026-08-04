@@ -134,6 +134,13 @@ function KasirPage() {
 
   const qtyInCart = (id: string) => cart.find((l) => l.productId === id)?.qty ?? 0;
 
+  // Pajak default toko: saat pengaturan pajak ON (default_tax > 0), centang otomatis.
+  const defaultTax = Number(tenant?.default_tax ?? 0);
+  useEffect(() => {
+    setTaxPercent(String(defaultTax));
+    setUseTax(defaultTax > 0);
+  }, [defaultTax]);
+
   const filtered = useMemo(
     () =>
       products.filter((p) => {
