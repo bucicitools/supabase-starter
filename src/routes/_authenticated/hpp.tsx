@@ -1,16 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { useAppDialog } from "@/components/app-dialog";
 import { dec, parseNum, rupiah } from "@/lib/format";
-import { suggestPricing } from "@/lib/ai.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,9 +18,9 @@ export const Route = createFileRoute("/_authenticated/hpp")({
   head: () => ({
     meta: [
       { title: "Hitung HPP — BUCICI" },
-      { name: "description", content: "Hitung harga pokok produksi per produk dan dapatkan saran harga jual." },
+      { name: "description", content: "Hitung harga pokok produksi per produk dan tentukan margin harga jual." },
       { property: "og:title", content: "Hitung HPP — BUCICI" },
-      { property: "og:description", content: "Hitung harga pokok produksi dan saran harga jual." },
+      { property: "og:description", content: "Hitung harga pokok produksi dan margin harga jual." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -56,8 +53,8 @@ function HppPage() {
   const [productId, setProductId] = useState<string>("manual");
   const [yieldQty, setYieldQty] = useState("1");
   const [ings, setIngs] = useState<Ing[]>([{ ...emptyIng }]);
-  const [advice, setAdvice] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [marginPreset, setMarginPreset] = useState<number | "custom">(40);
+  const [customMargin, setCustomMargin] = useState("45");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Record<string, unknown> | null>(null);
 
@@ -86,7 +83,11 @@ function HppPage() {
   const totalCost = ings.reduce((s, i) => s + ingCost(i), 0);
   const yieldNum = Math.max(0.0001, parseNum(yieldQty) || 1);
   const hpp = Math.round(totalCost / yieldNum);
-  const suggested = Math.ceil((hpp * 1.4) / 500) * 500;
+  const marginPct = Math.min(95, Math.max(0, marginPreset === "custom" ? parseNum(customMargin) : marginPreset));
+  const suggested = hpp > 0 ? Math.ceil(hpp / (1 - marginPct / 100) / 500) * 500 : 0;
+  const profitPart = Math.max(0, suggested - hpp);
+  const costShare = suggested > 0 ? (hpp / suggested) * 100 : 0;
+  const profitShare = suggested > 0 ? (profitPart / suggested) * 100 : 0;
 
   function resetForm() {
     setProductName("");
@@ -94,7 +95,6 @@ function HppPage() {
     setYieldQty("1");
     setIngs([{ ...emptyIng }]);
     setEditingId(null);
-    setAdvice("");
   }
 
   function pickProduct(id: string) {
@@ -145,7 +145,6 @@ function HppPage() {
     setProductId(r["product_id"] ? String(r["product_id"]) : "manual");
     setYieldQty(String(r["yield_qty"] ?? 1));
     setIngs(asIngs(r["ingredients"]));
-    setAdvice("");
     setDetail(null);
     if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -163,27 +162,6 @@ function HppPage() {
     setDetail(null);
     void qc.invalidateQueries({ queryKey: ["hpp_recipes", tenantId] });
     toast.success("Resep dihapus");
-  }
-
-  async function askAI() {
-    setBusy(true);
-    setAdvice("");
-    const res = await suggestPricing({
-      data: {
-        productName: productName.trim() || "Produk",
-        hpp,
-        ingredients: ings
-          .map((i) => `${i.name}: beli Rp${parseNum(i.buyPrice)} per ${i.buyQty}${i.unit}, dipakai ${i.useQty}${i.unit} = Rp${Math.round(ingCost(i))}`)
-          .join("; "),
-        market: tenant?.business_name ?? "",
-      },
-    });
-    setBusy(false);
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
-    }
-    setAdvice(res.text);
   }
 
   const detailIngs = detail ? asIngs(detail["ingredients"]) : [];
@@ -310,38 +288,59 @@ function HppPage() {
             <span>HPP per unit</span>
             <span className="num text-primary">{rupiah(hpp)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Saran harga jual (margin 40%)</span>
-            <span className="num font-medium">{rupiah(suggested)}</span>
-          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button onClick={() => void save()}>{editingId ? "Perbarui Resep" : "Simpan Resep"}</Button>
-          <Button variant="outline" onClick={() => void askAI()} disabled={busy}>
-            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-            Saran AI
-          </Button>
-        </div>
-      </div>
-
-      {advice && (
-        <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary">
-              <Sparkles className="h-4 w-4" /> Saran AI
-            </p>
-            <button onClick={() => setAdvice("")} aria-label="Tutup saran" className="text-muted-foreground">
-              <X className="h-4 w-4" />
+        <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+          <p className="text-sm font-semibold">Rekomendasi harga jual</p>
+          <p className="text-xs text-muted-foreground">Pilih target margin keuntungan dari harga jual.</p>
+          <div className="flex flex-wrap gap-2">
+            {[30, 40, 50, 60].map((m) => (
+              <button
+                key={m}
+                onClick={() => setMarginPreset(m)}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-bold ${
+                  marginPreset === m ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-foreground"
+                }`}
+              >
+                {m}%
+              </button>
+            ))}
+            <button
+              onClick={() => setMarginPreset("custom")}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-bold ${
+                marginPreset === "custom" ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-foreground"
+              }`}
+            >
+              Custom
             </button>
+            {marginPreset === "custom" && (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  className="h-8 w-24"
+                  inputMode="decimal"
+                  value={customMargin}
+                  onChange={(e) => setCustomMargin(e.target.value)}
+                />
+                <span className="text-xs font-semibold">%</span>
+              </div>
+            )}
           </div>
-          <div className="prose prose-sm dark:prose-invert max-w-none break-words p-4 prose-headings:mt-3 prose-headings:text-base prose-p:my-2 prose-li:my-0.5 prose-table:my-3 prose-td:px-2 prose-td:py-1 prose-th:px-2 prose-th:py-1">
-            <div className="x-scroll -mx-1 px-1 [&_table]:w-full [&_table]:min-w-[520px]">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{advice}</ReactMarkdown>
-            </div>
+          <div className="flex items-baseline justify-between rounded-xl bg-muted p-3">
+            <span className="text-sm text-muted-foreground">Harga jual disarankan</span>
+            <span className="num text-xl font-black text-primary">{rupiah(suggested)}</span>
           </div>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Dari harga <span className="num font-semibold text-foreground">{rupiah(suggested)}</span>, sekitar{" "}
+            <span className="num font-semibold text-foreground">{rupiah(hpp)}</span> ({dec(costShare, 1)}%) adalah modal
+            bahan Anda, dan <span className="num font-semibold text-foreground">{rupiah(profitPart)}</span> (
+            {dec(profitShare, 1)}%) adalah keuntungan Anda.
+          </p>
         </div>
-      )}
+
+        <Button className="w-full" onClick={() => void save()}>
+          {editingId ? "Perbarui Resep" : "Simpan Resep"}
+        </Button>
+      </div>
 
       <h2 className="mb-2 mt-6 text-sm font-bold uppercase tracking-wider text-muted-foreground">Resep Tersimpan</h2>
       <div className="space-y-2">

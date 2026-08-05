@@ -3,18 +3,16 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Pin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
-import { AIChat } from "@/components/AIChat";
 import { dateID } from "@/lib/format";
 import { youtubeEmbed } from "@/lib/format";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authenticated/info")({
   head: () => ({
     meta: [
-      { title: "Info & AI-sisten — BUCICI" },
-      { name: "description", content: "Kabar terbaru dari BUCICI dan asisten AI untuk pertanyaan usaha." },
-      { property: "og:title", content: "Info & AI-sisten — BUCICI" },
-      { property: "og:description", content: "Kabar terbaru dan asisten AI untuk pertanyaan usaha." },
+      { title: "Ruang Info — BUCICI" },
+      { name: "description", content: "Kabar dan pengumuman terbaru dari BUCICI untuk pemilik usaha." },
+      { property: "og:title", content: "Ruang Info — BUCICI" },
+      { property: "og:description", content: "Kabar dan pengumuman terbaru dari BUCICI." },
     ],
   }),
   component: InfoPage,
@@ -34,24 +32,8 @@ function InfoPage() {
   });
 
   return (
-    <AppShell title="Info & AI-sisten">
-      <Tabs defaultValue="ai">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="ai">AI-sisten</TabsTrigger>
-          <TabsTrigger value="kabar">Kabar</TabsTrigger>
-        </TabsList>
-        <TabsContent value="ai" className="mt-4">
-          <AIChat
-            scope="tenant"
-            starters={[
-              "Berapa omzet saya bulan ini?",
-              "Produk apa yang paling laku?",
-              "Beri ide promosi untuk minggu ini",
-              "Bagaimana cara menaikkan margin?",
-            ]}
-          />
-        </TabsContent>
-        <TabsContent value="kabar" className="mt-4 space-y-3">
+    <AppShell title="Ruang Info">
+      <div className="space-y-3">
           {posts.length === 0 && <p className="text-sm text-muted-foreground">Belum ada kabar terbaru.</p>}
           {posts.map((p) => {
             const embed = youtubeEmbed(p.link);
@@ -92,8 +74,7 @@ function InfoPage() {
             </article>
             );
           })}
-        </TabsContent>
-      </Tabs>
+      </div>
     </AppShell>
   );
 }

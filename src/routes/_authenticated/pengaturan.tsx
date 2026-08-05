@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Moon, Pencil, Plus, Sun, Trash2 } from "lucide-react";
+import { KeyRound, Loader2, Moon, Pencil, Plus, Sun, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -77,6 +77,8 @@ function SettingsPage() {
     tools: ["kasir"],
   });
   const [busy, setBusy] = useState(false);
+  const [pw, setPw] = useState({ old: "", next: "", confirm: "" });
+  const [pwBusy, setPwBusy] = useState(false);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
@@ -105,9 +107,41 @@ function SettingsPage() {
         .select("id,full_name,email,allowed_tool,allowed_tools")
         .eq("tenant_id", tenantId!)
         .order("full_name");
-      return data ?? [];
+      const ownerId = tenant?.owner_id ?? null;
+      // Daftar tim hanya menampilkan anggota — pemilik toko & diri sendiri disembunyikan.
+      return (data ?? []).filter((m) => m.id !== ownerId && m.id !== profile?.id);
     },
   });
+
+  async function changePassword() {
+    if (pw.next.length < 6) {
+      toast.error("Password baru minimal 6 karakter");
+      return;
+    }
+    if (pw.next !== pw.confirm) {
+      toast.error("Konfirmasi password tidak cocok");
+      return;
+    }
+    if (!profile?.email) return;
+    setPwBusy(true);
+    const { error: signErr } = await supabase.auth.signInWithPassword({
+      email: profile.email,
+      password: pw.old,
+    });
+    if (signErr) {
+      setPwBusy(false);
+      toast.error("Password lama salah");
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password: pw.next });
+    setPwBusy(false);
+    if (error) {
+      toast.error("Gagal mengganti password", { description: error.message });
+      return;
+    }
+    setPw({ old: "", next: "", confirm: "" });
+    toast.success("Password berhasil diganti");
+  }
 
   function toggleDark(v: boolean) {
     setDark(v);
@@ -165,9 +199,10 @@ function SettingsPage() {
   return (
     <AppShell title="Pengaturan">
       <Tabs defaultValue="toko">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="toko">Toko</TabsTrigger>
           <TabsTrigger value="tim">Tim</TabsTrigger>
+          <TabsTrigger value="akun">Akun</TabsTrigger>
           <TabsTrigger value="tampilan">Tampilan</TabsTrigger>
         </TabsList>
 
@@ -324,8 +359,7 @@ function SettingsPage() {
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    {m.id !== profile?.id && (
-                      <Button
+                    <Button
                         size="icon"
                         variant="ghost"
                         className="text-destructive"
@@ -347,13 +381,28 @@ function SettingsPage() {
                         }}
                       >
                         <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                    </Button>
                   </div>
                 ))}
               </div>
             </>
           )}
+        </TabsContent>
+
+        <TabsContent value="akun" className="mt-4">
+          <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <p className="flex items-center gap-2 text-sm font-bold">
+              <KeyRound className="h-4 w-4 text-primary" /> Ganti Password
+            </p>
+            <p className="-mt-1 text-xs text-muted-foreground">Akun: {profile?.email}</p>
+            <PF label="Password lama" value={pw.old} onChange={(v) => setPw({ ...pw, old: v })} />
+            <PF label="Password baru" value={pw.next} onChange={(v) => setPw({ ...pw, next: v })} />
+            <PF label="Konfirmasi password baru" value={pw.confirm} onChange={(v) => setPw({ ...pw, confirm: v })} />
+            <Button className="w-full" disabled={pwBusy} onClick={() => void changePassword()}>
+              {pwBusy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Simpan Password Baru
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="tampilan" className="mt-4">
@@ -427,6 +476,15 @@ function F({ label, value, onChange }: { label: string; value: string; onChange:
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       <Input value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
+}
+
+function PF({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input type="password" autoComplete="off" value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );
 }

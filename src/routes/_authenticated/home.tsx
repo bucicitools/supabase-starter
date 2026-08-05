@@ -84,7 +84,7 @@ const TOOLS = [
     key: "info",
     to: "/info",
     label: "Ruang Info",
-    desc: "Pengumuman, video, dan AI-sisten usaha.",
+    desc: "Pengumuman dan video dari tim BUCICI.",
     icon: Info,
     ownerOnly: true,
     tone: "bg-[#e11d48] shadow-[0_10px_24px_-10px_#e11d48]",
@@ -144,7 +144,16 @@ function HomePage() {
                 {locked ? <Lock className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
               </span>
               <p className="mt-1 text-lg font-bold leading-tight">{t.label}</p>
-              <p className="text-sm text-muted-foreground">{locked ? (flag?.note ?? "Sedang dikunci") : t.desc}</p>
+              {locked ? (
+                <>
+                  <span className="inline-flex w-fit items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    <Lock className="h-3 w-3" /> Terkunci
+                  </span>
+                  <p className="text-sm text-muted-foreground">{flag?.note?.trim() || "Sedang dalam perbaikan."}</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t.desc}</p>
+              )}
               {!locked && <span className="mt-auto pt-2 text-sm font-semibold text-foreground/70">Buka →</span>}
             </div>
           );

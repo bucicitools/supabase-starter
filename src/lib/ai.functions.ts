@@ -122,26 +122,3 @@ Rasio: ${data.ratio} (${data.pixels})`;
       return { ok: false as const, error: e instanceof Error ? e.message : "Gagal membuat prompt." };
     }
   });
-
-const PriceInput = z.object({
-  productName: z.string().max(120),
-  hpp: z.number(),
-  ingredients: z.string().max(3000),
-  market: z.string().max(200).optional().default(""),
-});
-
-export const suggestPricing = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => PriceInput.parse(d))
-  .handler(async ({ data }) => {
-    try {
-      const { text } = await generateText({
-        model: gateway()(MODEL),
-        system: `Kamu konsultan pricing UMKM Indonesia. Jawab dalam Markdown ringkas berisi tabel 3 opsi harga jual (Kompetitif / Standar / Cuan) dengan kolom: Opsi, Harga Jual, Margin %, Laba per unit, Kapan dipakai. Lalu 3 poin saran singkat. Bulatkan harga ke kelipatan 500 rupiah.`,
-        prompt: `Produk: ${data.productName}\nHPP per unit: Rp${data.hpp}\nRincian bahan: ${data.ingredients}\nKonteks pasar: ${data.market}`,
-      });
-      return { ok: true as const, text };
-    } catch (e) {
-      return { ok: false as const, error: e instanceof Error ? e.message : "Gagal memberi saran." };
-    }
-  });
