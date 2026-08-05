@@ -134,6 +134,9 @@ export const updateMemberAccess = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => AccessInput.parse(d))
   .handler(async ({ data, context }) => {
+    if (data.userId === context.userId) {
+      return { ok: false as const, error: "Tidak bisa mengubah hak akses sendiri." };
+    }
     const { data: me } = await context.supabase
       .from("profiles")
       .select("tenant_id")
@@ -148,6 +151,14 @@ export const updateMemberAccess = createServerFn({ method: "POST" })
       .eq("id", data.userId)
       .maybeSingle();
     if (target?.tenant_id !== me.tenant_id) return { ok: false as const, error: "Tidak diizinkan." };
+
+    const { data: targetRoles } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", data.userId);
+    if ((targetRoles ?? []).some((r) => r.role === "owner" || r.role === "super_admin")) {
+      return { ok: false as const, error: "Hak akses pemilik toko tidak dapat diubah." };
+    }
 
     const { error } = await supabaseAdmin
       .from("profiles")

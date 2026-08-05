@@ -181,6 +181,19 @@ function KasirPage() {
     setCart((c) => (v <= 0 ? c.filter((_, i) => i !== idx) : c.map((l, i) => (i === idx ? { ...l, qty: v } : l))));
   }
 
+  function bumpProduct(p: (typeof products)[number], delta: number) {
+    setCart((c) => {
+      const i = c.findIndex((l) => l.productId === p.id);
+      if (i < 0) {
+        if (delta <= 0) return c;
+        return [...c, { productId: p.id, name: p.name, price: Number(p.price), cost: Number(p.cost ?? 0), qty: delta }];
+      }
+      const next = Math.round((c[i]!.qty + delta) * 1000) / 1000;
+      if (next <= 0) return c.filter((_, j) => j !== i);
+      return c.map((l, j) => (j === i ? { ...l, qty: next } : l));
+    });
+  }
+
   function resetCart() {
     setCart([]);
     setCustomer("");
@@ -578,10 +591,13 @@ function KasirPage() {
                 const n = qtyInCart(p.id);
                 const hitting = hit === p.id;
                 return view === "card" ? (
-                  <button
+                  <div
                     key={p.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => addProduct(p)}
-                    className={`relative overflow-hidden rounded-2xl border bg-card p-2 text-left shadow-soft transition-transform duration-150 active:scale-95 ${
+                    onKeyDown={(e) => e.key === "Enter" && addProduct(p)}
+                    className={`relative cursor-pointer overflow-hidden rounded-2xl border bg-card p-2 text-left shadow-soft transition-transform duration-150 active:scale-95 ${
                       hitting ? "scale-95 border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
                     }`}
                   >
@@ -594,26 +610,66 @@ function KasirPage() {
                     <p className="line-clamp-2 text-[12px] font-semibold leading-tight">{p.name}</p>
                     <p className="num mt-0.5 text-[12px] font-bold text-primary">{rupiah(Number(p.price))}</p>
                     <p className="num text-[10px] text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
-                  </button>
+                    {n > 0 && (
+                      <div
+                        className="mt-1.5 flex items-center justify-between rounded-lg bg-muted p-0.5"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          aria-label="Kurangi"
+                          onClick={() => bumpProduct(p, -1)}
+                          className="grid h-6 w-6 place-items-center rounded-md bg-card text-sm font-bold shadow-soft"
+                        >
+                          −
+                        </button>
+                        <span className="num text-[12px] font-bold">{num(n)}</span>
+                        <button
+                          aria-label="Tambah"
+                          onClick={() => bumpProduct(p, 1)}
+                          className="grid h-6 w-6 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
+                        >
+                          +
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 ) : (
-                  <button
+                  <div
                     key={p.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => addProduct(p)}
-                    className={`flex w-full items-center gap-3 rounded-xl border bg-card px-3 py-2.5 text-left shadow-soft transition-transform duration-150 active:scale-[0.98] ${
+                    onKeyDown={(e) => e.key === "Enter" && addProduct(p)}
+                    className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card px-3 py-2.5 text-left shadow-soft transition-transform duration-150 active:scale-[0.98] ${
                       hitting ? "scale-[0.98] border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
                     }`}
                   >
+                    <ProductImage path={p.image_url} alt={p.name} className="h-10 w-10 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{p.name}</p>
                       <p className="num text-xs text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
                     </div>
                     <span className="num text-sm font-bold text-primary">{rupiah(Number(p.price))}</span>
                     {n > 0 && (
-                      <span className="num grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black text-primary-foreground">
-                        {num(n)}
-                      </span>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          aria-label="Kurangi"
+                          onClick={() => bumpProduct(p, -1)}
+                          className="grid h-7 w-7 place-items-center rounded-md border border-border bg-card text-sm font-bold"
+                        >
+                          −
+                        </button>
+                        <span className="num min-w-6 text-center text-[12px] font-bold">{num(n)}</span>
+                        <button
+                          aria-label="Tambah"
+                          onClick={() => bumpProduct(p, 1)}
+                          className="grid h-7 w-7 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
+                        >
+                          +
+                        </button>
+                      </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
               {filtered.length === 0 && (
