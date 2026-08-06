@@ -271,8 +271,8 @@ function StokPage() {
               )}
             </div>
             <Field label="Nama produk" value={p.name} onChange={(v) => setP({ ...p, name: v })} />
-            <Field label="Harga jual" value={p.price} onChange={(v) => setP({ ...p, price: v })} numeric />
-            <Field label="Modal/HPP" value={p.cost} onChange={(v) => setP({ ...p, cost: v })} numeric />
+            <Field label="Harga jual" value={p.price} onChange={(v) => setP({ ...p, price: v })} currency />
+            <Field label="Modal/HPP" value={p.cost} onChange={(v) => setP({ ...p, cost: v })} currency />
             <Field label="Stok" value={p.stock} onChange={(v) => setP({ ...p, stock: v })} numeric />
             <Field label="SKU" value={p.sku} onChange={(v) => setP({ ...p, sku: v })} />
             <Field label="Batas stok menipis" value={p.low} onChange={(v) => setP({ ...p, low: v })} numeric />
@@ -409,8 +409,9 @@ function StokPage() {
                         destructive: true,
                       });
                       if (!ok) return;
-                      await supabase.from("products").delete().eq("id", x.id);
-                      void qc.invalidateQueries({ queryKey: ["products", tenantId] });
+                      if (!(await requireOnline("Menghapus produk"))) return;
+                      await dbDelete("products", x.id);
+                      removeLocal(qc, ["products", tenantId], `products:${tenantId}`, x.id);
                       toast.success("Produk dihapus");
                     }}
                   >
@@ -429,7 +430,7 @@ function StokPage() {
             <Field label="Satuan" value={it.unit} onChange={(v) => setIt({ ...it, unit: v })} />
             <Field label="Jumlah" value={it.qty} onChange={(v) => setIt({ ...it, qty: v })} numeric />
             <Field label="Stok minimum" value={it.min} onChange={(v) => setIt({ ...it, min: v })} numeric />
-            <Field label="Harga satuan" value={it.cost} onChange={(v) => setIt({ ...it, cost: v })} numeric />
+            <Field label="Harga satuan" value={it.cost} onChange={(v) => setIt({ ...it, cost: v })} currency />
             <Field label="Pemasok" value={it.supplier} onChange={(v) => setIt({ ...it, supplier: v })} />
             <Button onClick={() => void addItem()} className="sm:col-span-3">
               <Plus className="mr-2 h-4 w-4" /> Tambah Bahan
@@ -506,8 +507,9 @@ function StokPage() {
                       variant="ghost"
                       className="ml-auto text-destructive"
                       onClick={async () => {
-                        await supabase.from("stock_items").delete().eq("id", x.id);
-                        void qc.invalidateQueries({ queryKey: ["stock_items", tenantId] });
+                        if (!(await requireOnline("Menghapus bahan"))) return;
+                        await dbDelete("stock_items", x.id);
+                        removeLocal(qc, ["stock_items", tenantId], `stock_items:${tenantId}`, x.id);
                       }}
                     >
                       Hapus
@@ -528,16 +530,41 @@ function Field({
   value,
   onChange,
   numeric,
+  currency,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   numeric?: boolean;
+  currency?: boolean;
 }) {
+  if (currency) {
+    return (
+      <div className="space-y-1">
+        <Label className="text-xs">{label}</Label>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+            Rp
+          </span>
+          <Input
+            className="num pl-8"
+            inputMode="numeric"
+            value={thousands(value)}
+            onChange={(e) => onChange(digitsOnly(e.target.value))}
+          />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} inputMode={numeric ? "decimal" : undefined} />
+      <Input
+        value={value}
+        className={numeric ? "num" : undefined}
+        onChange={(e) => onChange(numeric ? numInput(e.target.value) : e.target.value)}
+        inputMode={numeric ? "decimal" : undefined}
+      />
     </div>
   );
 }
