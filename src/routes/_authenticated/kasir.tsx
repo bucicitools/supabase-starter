@@ -207,9 +207,9 @@ function KasirPage() {
     setSaving(true);
     const status: "paid" | "unpaid" = payNow ? "paid" : "unpaid";
     const code = txCode();
-    const { data: tx, error } = await supabase
-      .from("transactions")
-      .insert({
+    const tx = { id: crypto.randomUUID(), code, created_at: new Date().toISOString() };
+    const txRow = {
+        id: tx.id,
         tenant_id: tenantId,
         code,
         customer_name: customer.trim() || null,
@@ -228,18 +228,20 @@ function KasirPage() {
         cashier_id: profile?.id ?? null,
         cashier_name: profile?.full_name ?? null,
         paid_at: status === "paid" ? new Date().toISOString() : null,
-      })
-      .select("id,code,created_at")
-      .single();
-
-    if (error || !tx) {
+        created_at: tx.created_at,
+    };
+    const res = await dbInsert("transactions", [txRow]);
+    if (!res.ok) {
       setSaving(false);
-      toast.error("Gagal menyimpan transaksi", { description: error?.message });
+      toast.error("Gagal menyimpan transaksi", { description: res.error });
       return;
     }
+    upsertLocal(qc, ["transactions", tenantId], `transactions:${tenantId}`, txRow as never);
 
-    await supabase.from("transaction_items").insert(
+    await dbInsert(
+      "transaction_items",
       cart.map((l) => ({
+        id: crypto.randomUUID(),
         transaction_id: tx.id,
         tenant_id: tenantId,
         product_id: l.productId,
@@ -247,13 +249,17 @@ function KasirPage() {
         qty: l.qty,
         price: l.price,
         cost: l.cost,
+        created_at: tx.created_at,
       })),
     );
 
     for (const l of cart) {
       if (!l.productId) continue;
       const p = products.find((x) => x.id === l.productId);
-      if (p) await supabase.from("products").update({ stock: Number(p.stock ?? 0) - l.qty }).eq("id", l.productId);
+      if (!p) continue;
+      const nextStock = Number(p.stock ?? 0) - l.qty;
+      await dbUpdate("products", l.productId, { stock: nextStock });
+      patchLocal(qc, ["products", tenantId], `products:${tenantId}`, l.productId, { stock: nextStock } as never);
     }
 
     setReceipt({
@@ -275,7 +281,9 @@ function KasirPage() {
     resetCart();
     setSaving(false);
     void qc.invalidateQueries();
-    toast.success("Transaksi tersimpan", { description: tx.code });
+    toast.success("Transaksi tersimpan", {
+      description: res.queued ? `${tx.code} · tersimpan offline, sinkron saat online` : tx.code,
+    });
   }
 
   /* --------- pelunasan transaksi "bayar nanti" --------- */
@@ -419,7 +427,8 @@ function KasirPage() {
       return;
     }
     const isReset = kasType === "fill" ? kasReset : false;
-    const { error } = await supabase.from("cash_entries").insert({
+    const row = {
+      id: crypto.randomUUID(),
       tenant_id: tenantId,
       type: kasType,
       amount: value,
@@ -427,16 +436,20 @@ function KasirPage() {
       is_reset: isReset,
       created_by: profile?.id ?? null,
       created_by_name: profile?.full_name ?? null,
-    });
-    if (error) {
-      toast.error("Gagal menyimpan", { description: error.message });
+      created_at: new Date().toISOString(),
+    };
+    const res = await dbInsert("cash_entries", [row]);
+    if (!res.ok) {
+      toast.error("Gagal menyimpan", { description: res.error });
       return;
     }
+    upsertLocal(qc, ["cash_entries", tenantId], `cash_entries:${tenantId}`, row as never);
     setKasAmount("");
     setKasNote("");
     setKasReset(false);
-    void qc.invalidateQueries({ queryKey: ["cash_entries", tenantId] });
-    toast.success("Catatan kas tersimpan");
+    toast.success("Catatan kas tersimpan", {
+      description: res.queued ? "Tersimpan offline, akan tersinkron saat online." : undefined,
+    });
   }
 
   /* ---------------- riwayat filter ---------------- */
@@ -455,21 +468,26 @@ function KasirPage() {
 
   /* ---------------- rekapan ---------------- */
   const [period, setPeriod] = useState<"today" | "7d" | "all">("today");
+  const [rfrom, setRfrom] = useState("");
+  const [rto, setRto] = useState("");
   const rekapFrom = useMemo(() => {
+    if (rfrom) return new Date(`${rfrom}T00:00:00`).toISOString();
     if (period === "all") return null;
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     if (period === "7d") d.setDate(d.getDate() - 6);
     return d.toISOString();
-  }, [period]);
-  const rekapTx = history.filter((t) => (rekapFrom ? t.created_at >= rekapFrom : true));
+  }, [period, rfrom]);
+  const rekapTo = useMemo(() => (rto ? new Date(`${rto}T23:59:59`).toISOString() : null), [rto]);
+  const inRekap = (at: string) => (rekapFrom ? at >= rekapFrom : true) && (rekapTo ? at <= rekapTo : true);
+  const rekapTx = history.filter((t) => inRekap(t.created_at));
   const rekapPaid = rekapTx.filter((t) => t.status === "paid");
   // Omzet mencakup transaksi lunas DAN bayar nanti (piutang), kecuali yang dibatalkan.
   const rekapSah = rekapTx.filter((t) => t.status !== "void");
   const omzet = rekapSah.reduce((s, t) => s + Number(t.total), 0);
   const piutangRekap = rekapTx.filter((t) => t.status === "unpaid").reduce((s, t) => s + Number(t.total), 0);
   const uangKeluar = cash
-    .filter((c) => c.type === "out" && (rekapFrom ? c.created_at >= rekapFrom : true))
+    .filter((c) => c.type === "out" && inRekap(c.created_at))
     .reduce((s, c) => s + Number(c.amount), 0);
   const byMethod = Object.entries(
     rekapPaid.reduce<Record<string, number>>((acc, t) => {
@@ -490,14 +508,13 @@ function KasirPage() {
   const { data: rekapItems = [] } = useQuery({
     queryKey: ["transaction_items", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
+    ...cachedList(`transaction_items:${tenantId}`, () =>
+      supabase
         .from("transaction_items")
         .select("name,qty,price,transaction_id,created_at")
         .eq("tenant_id", tenantId!)
-        .limit(5000);
-      return data ?? [];
-    },
+        .limit(5000),
+    ),
   });
   const sahIds = new Set(rekapSah.map((t) => t.id));
   const soldQty = Object.entries(
