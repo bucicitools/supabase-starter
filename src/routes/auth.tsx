@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { registerAccount } from "@/lib/account.functions";
 import { useAuth } from "@/lib/auth";
+import { isOnline } from "@/lib/offline";
+import { useAppDialog } from "@/components/app-dialog";
 import { LogoFull } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,6 +68,7 @@ function PasswordField({
 function AuthPage() {
   const navigate = useNavigate();
   const { user, role, loading: authLoading, refresh } = useAuth();
+  const dialog = useAppDialog();
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState("login");
 
@@ -85,6 +88,21 @@ function AuthPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (!isOnline()) {
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.user) {
+        await refresh();
+        toast.success("Masuk dengan sesi tersimpan (mode offline)");
+        return;
+      }
+      await dialog.alert({
+        title: "Tidak Ada Koneksi Internet",
+        description:
+          "Masuk pertama kali di perangkat ini membutuhkan internet. Setelah pernah masuk, aplikasi bisa dipakai offline.",
+        confirmText: "Mengerti",
+      });
+      return;
+    }
     setBusy(true);
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
@@ -98,6 +116,14 @@ function AuthPage() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
+    if (!isOnline()) {
+      await dialog.alert({
+        title: "Tidak Ada Koneksi Internet",
+        description: "Pendaftaran akun baru membutuhkan jaringan internet.",
+        confirmText: "Mengerti",
+      });
+      return;
+    }
     if (rPass.length < 6) {
       toast.error("Password minimal 6 karakter");
       return;
