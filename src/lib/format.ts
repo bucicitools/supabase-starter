@@ -29,6 +29,31 @@ export function parseNum(input: string | number | null | undefined): number {
 export const dec = (n: number, digits = 2) =>
   new Intl.NumberFormat("id-ID", { maximumFractionDigits: digits }).format(Number(n || 0));
 
+/** Format ribuan dengan titik dari teks input mentah, mis. "1000" -> "1.000". */
+export function thousands(raw: string | number | null | undefined): string {
+  const s = String(raw ?? "").replace(/[^\d,.-]/g, "");
+  if (!s) return "";
+  const neg = s.startsWith("-");
+  const clean = s.replace(/[^\d,.]/g, "").replace(/\./g, ",");
+  const [intPart = "", decPart] = clean.split(",");
+  const digits = intPart.replace(/\D/g, "").replace(/^0+(?=\d)/, "") || "0";
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return (neg ? "-" : "") + grouped + (decPart != null ? "," + decPart.replace(/\D/g, "") : "");
+}
+
+/** Hilangkan nol di depan agar "0" + "3" jadi "3", bukan "03". */
+export function numInput(raw: string): string {
+  if (raw === "") return "";
+  const cleaned = raw.replace(/^0+(?=\d)/, "");
+  return cleaned === "" ? "0" : cleaned;
+}
+
+/** Ambil digit saja lalu buang nol di depan (untuk kolom mata uang). */
+export function digitsOnly(raw: string): string {
+  const d = raw.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  return d;
+}
+
 export function youtubeEmbed(url: string | null | undefined): string | null {
   if (!url) return null;
   const m =
