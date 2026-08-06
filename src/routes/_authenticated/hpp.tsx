@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { useAppDialog } from "@/components/app-dialog";
-import { dec, parseNum, rupiah } from "@/lib/format";
+import { dec, digitsOnly, numInput, parseNum, rupiah, thousands } from "@/lib/format";
+import { cachedList, dbDelete, dbInsert, dbUpdate, isOnline, removeLocal, upsertLocal } from "@/lib/offline";
+import { syncProductCost } from "@/lib/hpp-sync";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,23 +63,21 @@ function HppPage() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("id,name,price,cost").eq("tenant_id", tenantId!).order("name");
-      return data ?? [];
-    },
+    ...cachedList(`products:${tenantId}`, () =>
+      supabase.from("products").select("*").eq("tenant_id", tenantId!).order("name"),
+    ),
   });
 
   const { data: saved = [] } = useQuery({
     queryKey: ["hpp_recipes", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
+    ...cachedList(`hpp_recipes:${tenantId}`, () =>
+      supabase
         .from("hpp_recipes")
         .select("*")
         .eq("tenant_id", tenantId!)
-        .order("created_at", { ascending: false });
-      return data ?? [];
-    },
+        .order("created_at", { ascending: false }),
+    ),
   });
 
   const totalCost = ings.reduce((s, i) => s + ingCost(i), 0);
@@ -110,6 +110,7 @@ function HppPage() {
       return;
     }
     const payload = {
+      id: editingId ?? crypto.randomUUID(),
       tenant_id: tenantId,
       product_name: productName.trim(),
       product_id: productId === "manual" ? null : productId,
@@ -119,22 +120,31 @@ function HppPage() {
       labor: 0,
       hpp,
       suggested_price: suggested,
+      created_at: new Date().toISOString(),
     };
-    const { error } = editingId
-      ? await supabase.from("hpp_recipes").update(payload).eq("id", editingId)
-      : await supabase.from("hpp_recipes").insert(payload);
-    if (error) {
-      toast.error("Gagal menyimpan", { description: error.message });
+    const res = editingId
+      ? await dbUpdate("hpp_recipes", editingId, { ...payload, id: undefined, created_at: undefined })
+      : await dbInsert("hpp_recipes", [payload]);
+    if (!res.ok) {
+      toast.error("Gagal menyimpan", { description: res.error });
       return;
     }
-    // Sinkron ke Produk Jual: HPP jadi harga modal produk.
+    upsertLocal(qc, ["hpp_recipes", tenantId], `hpp_recipes:${tenantId}`, payload);
+    // Sinkron ke Produk Jual + transaksi lama yang belum punya modal.
     if (productId !== "manual") {
-      await supabase.from("products").update({ cost: hpp }).eq("id", productId);
+      if (isOnline()) await syncProductCost(tenantId, productId, hpp);
+      else await dbUpdate("products", productId, { cost: hpp });
       void qc.invalidateQueries({ queryKey: ["products", tenantId] });
+      void qc.invalidateQueries({ queryKey: ["dashboard", tenantId] });
+      void qc.invalidateQueries({ queryKey: ["transaction_items", tenantId] });
     }
     void qc.invalidateQueries({ queryKey: ["hpp_recipes", tenantId] });
     toast.success(editingId ? "Resep diperbarui" : "Resep HPP tersimpan", {
-      description: productId !== "manual" ? "Harga modal produk jual ikut diperbarui." : undefined,
+      description: res.queued
+        ? "Tersimpan offline, akan tersinkron saat online."
+        : productId !== "manual"
+          ? "Harga modal produk & transaksi terkait ikut diperbarui."
+          : undefined,
     });
     resetForm();
   }
@@ -157,7 +167,8 @@ function HppPage() {
       destructive: true,
     });
     if (!ok) return;
-    await supabase.from("hpp_recipes").delete().eq("id", id);
+    await dbDelete("hpp_recipes", id);
+    removeLocal(qc, ["hpp_recipes", tenantId], `hpp_recipes:${tenantId}`, id);
     if (editingId === id) resetForm();
     setDetail(null);
     void qc.invalidateQueries({ queryKey: ["hpp_recipes", tenantId] });
