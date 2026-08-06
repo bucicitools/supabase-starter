@@ -720,7 +720,12 @@ function KasirPage() {
               {settleMethod === "CASH" && (
                 <div>
                   <Label className="text-xs">Uang diterima</Label>
-                  <Input value={settlePaid} onChange={(e) => setSettlePaid(e.target.value)} inputMode="numeric" />
+                  <Input
+                    className="num"
+                    value={thousands(settlePaid)}
+                    onChange={(e) => setSettlePaid(digitsOnly(e.target.value))}
+                    inputMode="numeric"
+                  />
                 </div>
               )}
               <div className="grid grid-cols-2 gap-2">
@@ -865,7 +870,13 @@ function KasirPage() {
                   </div>
                   {method === "CASH" && (
                     <>
-                      <Input value={paid} onChange={(e) => setPaid(e.target.value)} inputMode="numeric" placeholder="Uang diterima" />
+                      <Input
+                        className="num"
+                        value={thousands(paid)}
+                        onChange={(e) => setPaid(digitsOnly(e.target.value))}
+                        inputMode="numeric"
+                        placeholder="Uang diterima"
+                      />
                       <div className="flex flex-wrap gap-1.5">
                         {QUICK.map((v) => (
                           <Button
@@ -929,7 +940,13 @@ function KasirPage() {
                 </button>
               ))}
             </div>
-            <Input value={kasAmount} onChange={(e) => setKasAmount(e.target.value)} inputMode="numeric" placeholder="Nominal" className="h-12" />
+            <Input
+              value={thousands(kasAmount)}
+              onChange={(e) => setKasAmount(digitsOnly(e.target.value))}
+              inputMode="numeric"
+              placeholder="Nominal"
+              className="num h-12"
+            />
             <Input
               value={kasNote}
               onChange={(e) => setKasNote(e.target.value)}
