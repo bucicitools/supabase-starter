@@ -1118,6 +1118,32 @@ function KasirPage() {
                 {o.l}
               </button>
             ))}
+            <Input
+              type="date"
+              value={rfrom}
+              onChange={(e) => setRfrom(e.target.value)}
+              className="h-9 w-auto"
+              aria-label="Dari tanggal"
+            />
+            <Input
+              type="date"
+              value={rto}
+              onChange={(e) => setRto(e.target.value)}
+              className="h-9 w-auto"
+              aria-label="Sampai tanggal"
+            />
+            {(rfrom || rto) && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setRfrom("");
+                  setRto("");
+                }}
+              >
+                Reset
+              </Button>
+            )}
             <Button
               variant="outline"
               className="ml-auto"
