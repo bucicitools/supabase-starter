@@ -211,7 +211,7 @@ function HppPage() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Hasil (porsi/pcs)</Label>
-            <Input value={yieldQty} onChange={(e) => setYieldQty(e.target.value)} inputMode="decimal" />
+            <Input value={yieldQty} onChange={(e) => setYieldQty(numInput(e.target.value))} inputMode="decimal" />
           </div>
         </div>
         {productId !== "manual" && (
@@ -246,20 +246,29 @@ function HppPage() {
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
               <div className="space-y-1">
                 <Label className="text-[11px]">Harga beli</Label>
-                <Input
-                  inputMode="decimal"
-                  placeholder="3000"
-                  value={ing.buyPrice}
-                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, buyPrice: e.target.value } : x)))}
-                />
+                <div className="relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                    Rp
+                  </span>
+                  <Input
+                    inputMode="numeric"
+                    className="num pl-8"
+                    placeholder="3.000"
+                    value={thousands(ing.buyPrice)}
+                    onChange={(e) =>
+                      setIngs(ings.map((x, j) => (i === j ? { ...x, buyPrice: digitsOnly(e.target.value) } : x)))
+                    }
+                  />
+                </div>
               </div>
               <div className="space-y-1">
                 <Label className="text-[11px]">Dapat (jumlah)</Label>
                 <Input
                   inputMode="decimal"
                   placeholder="250"
+                  className="num"
                   value={ing.buyQty}
-                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, buyQty: e.target.value } : x)))}
+                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, buyQty: numInput(e.target.value) } : x)))}
                 />
               </div>
               <div className="space-y-1">
@@ -267,8 +276,9 @@ function HppPage() {
                 <Input
                   inputMode="text"
                   placeholder="10 atau 1/9"
+                  className="num"
                   value={ing.useQty}
-                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, useQty: e.target.value } : x)))}
+                  onChange={(e) => setIngs(ings.map((x, j) => (i === j ? { ...x, useQty: numInput(e.target.value) } : x)))}
                 />
               </div>
               <div className="space-y-1">
@@ -281,7 +291,8 @@ function HppPage() {
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
-              Pemakaian {dec(parseNum(ing.useQty), 4)} {ing.unit} ={" "}
+              Beli {rupiah(parseNum(ing.buyPrice))} / {dec(parseNum(ing.buyQty), 4)} {ing.unit} · pemakaian{" "}
+              {dec(parseNum(ing.useQty), 4)} {ing.unit} ={" "}
               <span className="font-semibold text-primary">{rupiah(Math.round(ingCost(ing)))}</span>
             </p>
           </div>
@@ -330,7 +341,7 @@ function HppPage() {
                   className="h-8 w-24"
                   inputMode="decimal"
                   value={customMargin}
-                  onChange={(e) => setCustomMargin(e.target.value)}
+                  onChange={(e) => setCustomMargin(numInput(e.target.value))}
                 />
                 <span className="text-xs font-semibold">%</span>
               </div>
