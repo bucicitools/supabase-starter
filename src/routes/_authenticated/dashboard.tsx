@@ -18,7 +18,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
-import { cacheGet, cacheSet } from "@/lib/offline";
+import { cacheGet, cacheSet, isOnline } from "@/lib/offline";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { dateID, rupiah } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ type Stats = {
   low: number;
   piutang: number;
   missingCost: number;
+  missingQty: number;
 };
 
 function DashboardPage() {
@@ -61,13 +62,19 @@ function DashboardPage() {
     queryKey: ["dashboard", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
+      const cached = cacheGet<Stats | null>(`dashboard:${tenant!.id}`, null);
+      if (!isOnline() && cached) return cached;
       const start = new Date();
       start.setHours(0, 0, 0, 0);
       const iso = start.toISOString();
       const [{ data: txs }, { data: items }, { data: cash }, { data: prods }, { data: allUnpaid }, { data: cashTx }] =
         await Promise.all([
         supabase.from("transactions").select("*").eq("tenant_id", tenant!.id).gte("created_at", iso),
-        supabase.from("transaction_items").select("qty,cost,name,created_at").eq("tenant_id", tenant!.id).gte("created_at", iso),
+        supabase
+          .from("transaction_items")
+          .select("qty,cost,name,product_id,created_at")
+          .eq("tenant_id", tenant!.id)
+          .gte("created_at", iso),
         supabase.from("cash_entries").select("*").eq("tenant_id", tenant!.id),
         supabase.from("products").select("stock,low_stock_threshold,cost").eq("tenant_id", tenant!.id),
         supabase.from("transactions").select("total").eq("tenant_id", tenant!.id).eq("status", "unpaid"),
@@ -77,6 +84,7 @@ function DashboardPage() {
           .eq("tenant_id", tenant!.id)
           .eq("status", "paid"),
       ]);
+      if (!txs && cached) return cached;
       // Omzet = seluruh transaksi hari ini yang tidak dibatalkan (lunas + bayar nanti/piutang).
       const sah = (txs ?? []).filter((t) => t.status !== "void");
       const paid = (txs ?? []).filter((t) => t.status === "paid");
@@ -106,6 +114,9 @@ function DashboardPage() {
           return acc;
         }, {}),
       ).sort((a, b) => b[1] - a[1])[0];
+      // Hitung berapa JENIS produk (bukan jumlah unit) yang belum punya harga modal.
+      const missingItems = (items ?? []).filter((i) => i.cost == null || Number(i.cost) <= 0);
+      const missingKeys = new Set(missingItems.map((i) => i.product_id ?? i.name));
       const stats: Stats = {
         omzet,
         hpp,
@@ -120,7 +131,8 @@ function DashboardPage() {
         best: best?.[0] ?? "—",
         low: (prods ?? []).filter((p) => Number(p.stock) <= Number(p.low_stock_threshold ?? 0)).length,
         piutang: (allUnpaid ?? []).reduce((a, t) => a + Number(t.total), 0),
-        missingCost: (items ?? []).filter((i) => i.cost == null || Number(i.cost) <= 0).length,
+        missingCost: missingKeys.size,
+        missingQty: missingItems.reduce((a, i) => a + Number(i.qty), 0),
       };
       cacheSet(`dashboard:${tenant!.id}`, stats);
       return stats;
@@ -142,7 +154,7 @@ function DashboardPage() {
           </p>
           <p className="num mt-2 text-3xl font-black tracking-tight text-foreground">Belum bisa dihitung</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ada {s?.missingCost} item terjual yang produknya belum punya harga modal (HPP). Lengkapi dulu agar laba akurat.
+            Ada {s?.missingCost} produk terjual hari ini yang belum punya harga modal (HPP). Lengkapi dulu agar laba akurat.
           </p>
           <Button asChild className="mt-4">
             <Link to="/stok" search={{ filter: "nomodal" }}>
@@ -176,7 +188,7 @@ function DashboardPage() {
             </p>
             <p className="mt-1 text-sm font-semibold leading-tight text-foreground">Belum bisa dihitung</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {s?.missingCost} item produk terjual hari ini belum punya harga modal.
+              {s?.missingCost} produk terjual hari ini belum punya harga modal.
             </p>
             <Button asChild size="sm" variant="outline" className="mt-2 h-8 w-full text-xs">
               <Link to="/stok" search={{ filter: "nomodal" }}>

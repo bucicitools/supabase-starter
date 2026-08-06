@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { cacheGet, cacheSet, isOnline } from "@/lib/offline";
 
 export type AppRole = "super_admin" | "owner" | "member";
 
@@ -71,11 +72,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    const [{ data: p }, { data: roles }, { data: ff }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("id", u.id).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", u.id),
-      supabase.from("feature_flags").select("feature_key,is_locked,is_hidden,note"),
-    ]);
+    type Snapshot = {
+      profile: Profile | null;
+      tenant: Tenant | null;
+      role: AppRole | null;
+      permissions: string[];
+      flags: FeatureFlag[];
+    };
+    const snapKey = `auth:${u.id}`;
+
+    const applyCache = () => {
+      const snap = cacheGet<Snapshot | null>(snapKey, null);
+      if (!snap) return false;
+      setProfile(snap.profile);
+      setTenant(snap.tenant);
+      setRole(snap.role);
+      setPermissions(snap.permissions);
+      setFlags(snap.flags);
+      setLoading(false);
+      return true;
+    };
+
+    // Tanpa internet: pakai data terakhir yang tersimpan di perangkat.
+    if (!isOnline() && applyCache()) return;
+
+    let p: Profile | null = null;
+    let roles: { role: string }[] | null = null;
+    let ff: FeatureFlag[] | null = null;
+    try {
+      const [a, b, c] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", u.id).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", u.id),
+        supabase.from("feature_flags").select("feature_key,is_locked,is_hidden,note"),
+      ]);
+      p = (a.data as Profile) ?? null;
+      roles = b.data;
+      ff = (c.data as FeatureFlag[]) ?? null;
+    } catch {
+      /* jaringan bermasalah */
+    }
+    if (!p) {
+      if (applyCache()) return;
+    }
     setFlags((ff ?? []) as FeatureFlag[]);
     const rs = (roles ?? []).map((r) => r.role as AppRole);
     const resolved: AppRole | null = rs.includes("super_admin")
@@ -88,27 +126,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(resolved);
     setProfile((p as Profile) ?? null);
 
+    let loadedTenant: Tenant | null = null;
     if (p?.tenant_id) {
       const { data: t } = await supabase.from("tenants").select("*").eq("id", p.tenant_id).maybeSingle();
-      setTenant((t as Tenant) ?? null);
+      loadedTenant = (t as Tenant) ?? null;
+      setTenant(loadedTenant);
     } else {
       setTenant(null);
     }
 
+    let perms: string[] = ["*"];
     if (resolved === "member" && p?.tenant_role_id) {
       const { data: tr } = await supabase
         .from("tenant_roles")
         .select("permissions")
         .eq("id", p.tenant_role_id)
         .maybeSingle();
-      setPermissions((tr?.permissions as string[]) ?? []);
+      perms = (tr?.permissions as string[]) ?? [];
+      setPermissions(perms);
     } else {
       setPermissions(["*"]);
     }
+    cacheSet(snapKey, {
+      profile: p,
+      tenant: loadedTenant,
+      role: resolved,
+      permissions: perms,
+      flags: (ff ?? []) as FeatureFlag[],
+    });
     setLoading(false);
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!isOnline()) {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user ?? null);
+      await load(data.session?.user ?? null);
+      return;
+    }
     const { data } = await supabase.auth.getUser();
     setUser(data.user ?? null);
     await load(data.user ?? null);

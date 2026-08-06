@@ -487,7 +487,9 @@ export type Database = {
           receipt_extra: string | null
           receipt_footer: string | null
           receipt_header: string | null
+          receipt_logo_url: string | null
           receipt_phone: string | null
+          receipt_qris_url: string | null
           updated_at: string
         }
         Insert: {
@@ -504,7 +506,9 @@ export type Database = {
           receipt_extra?: string | null
           receipt_footer?: string | null
           receipt_header?: string | null
+          receipt_logo_url?: string | null
           receipt_phone?: string | null
+          receipt_qris_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -521,7 +525,9 @@ export type Database = {
           receipt_extra?: string | null
           receipt_footer?: string | null
           receipt_header?: string | null
+          receipt_logo_url?: string | null
           receipt_phone?: string | null
+          receipt_qris_url?: string | null
           updated_at?: string
         }
         Relationships: []

@@ -7,6 +7,7 @@
  *   lalu `flushQueue` mengirimnya ke database begitu koneksi kembali.
  */
 import { supabase } from "@/integrations/supabase/client";
+import type { QueryClient } from "@tanstack/react-query";
 
 const CACHE_PREFIX = "bucici:cache:";
 const QUEUE_KEY = "bucici:outbox";
@@ -62,6 +63,123 @@ export function queueSize() {
 
 export function isOnline() {
   return typeof navigator === "undefined" ? true : navigator.onLine;
+}
+
+/* ------------------------------------------------------------------ *
+ * Query dengan cadangan cache — daftar tetap tampil walau tanpa sinyal.
+ * ------------------------------------------------------------------ */
+export function cachedList<T>(key: string, run: () => PromiseLike<{ data: T[] | null }>) {
+  return {
+    queryFn: async () => {
+      try {
+        const { data } = await run();
+        if (data) {
+          cacheSet(key, data);
+          return data;
+        }
+      } catch {
+        /* offline — pakai cache */
+      }
+      return cacheGet<T[]>(key, []);
+    },
+    initialData: () => {
+      const c = cacheGet<T[] | null>(key, null);
+      return c ?? undefined;
+    },
+    initialDataUpdatedAt: 0,
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * Tulis data: langsung ke database saat online, masuk antrian saat offline.
+ * ------------------------------------------------------------------ */
+export type WriteResult = { ok: boolean; queued: boolean; error?: string };
+
+export async function dbInsert(table: string, rows: Record<string, unknown>[]): Promise<WriteResult> {
+  if (!rows.length) return { ok: true, queued: false };
+  if (isOnline()) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from(table as any) as any).insert(rows);
+      if (!error) return { ok: true, queued: false };
+      // Gagal karena jaringan → antrikan, selain itu laporkan.
+      if (!/fetch|network|Failed/i.test(error.message ?? "")) {
+        return { ok: false, queued: false, error: error.message };
+      }
+    } catch {
+      /* jatuh ke antrian */
+    }
+  }
+  enqueue([{ kind: "insert", table, rows }]);
+  return { ok: true, queued: true };
+}
+
+export async function dbUpdate(table: string, id: string, patch: Record<string, unknown>): Promise<WriteResult> {
+  if (isOnline()) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from(table as any) as any).update(patch).eq("id", id);
+      if (!error) return { ok: true, queued: false };
+      if (!/fetch|network|Failed/i.test(error.message ?? "")) {
+        return { ok: false, queued: false, error: error.message };
+      }
+    } catch {
+      /* jatuh ke antrian */
+    }
+  }
+  enqueue([{ kind: "update", table, id, patch }]);
+  return { ok: true, queued: true };
+}
+
+export async function dbDelete(table: string, id: string): Promise<WriteResult> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase.from(table as any) as any).delete().eq("id", id);
+  return error ? { ok: false, queued: false, error: error.message } : { ok: true, queued: false };
+}
+
+/** Tambahkan/timpa satu baris pada cache daftar agar UI langsung ikut berubah. */
+export function upsertLocal<T extends { id: string }>(
+  qc: QueryClient,
+  queryKey: unknown[],
+  cacheKey: string,
+  row: T,
+  atTop = true,
+) {
+  const next = (() => {
+    const old = (qc.getQueryData<T[]>(queryKey) ?? cacheGet<T[]>(cacheKey, [])) as T[];
+    const i = old.findIndex((x) => x.id === row.id);
+    if (i >= 0) return old.map((x, j) => (j === i ? { ...x, ...row } : x));
+    return atTop ? [row, ...old] : [...old, row];
+  })();
+  qc.setQueryData(queryKey, next);
+  cacheSet(cacheKey, next);
+}
+
+/** Perbarui sebagian kolom satu baris pada cache daftar. */
+export function patchLocal<T extends { id: string }>(
+  qc: QueryClient,
+  queryKey: unknown[],
+  cacheKey: string,
+  id: string,
+  patch: Partial<T>,
+) {
+  const old = (qc.getQueryData<T[]>(queryKey) ?? cacheGet<T[]>(cacheKey, [])) as T[];
+  const next = old.map((x) => (x.id === id ? { ...x, ...patch } : x));
+  qc.setQueryData(queryKey, next);
+  cacheSet(cacheKey, next);
+}
+
+/** Hapus satu baris dari cache daftar. */
+export function removeLocal<T extends { id: string }>(
+  qc: QueryClient,
+  queryKey: unknown[],
+  cacheKey: string,
+  id: string,
+) {
+  const old = (qc.getQueryData<T[]>(queryKey) ?? cacheGet<T[]>(cacheKey, [])) as T[];
+  const next = old.filter((x) => x.id !== id);
+  qc.setQueryData(queryKey, next);
+  cacheSet(cacheKey, next);
 }
 
 let flushing = false;

@@ -24,6 +24,7 @@ type PromptOpts = {
 type Ctx = {
   confirm: (o: ConfirmOpts) => Promise<boolean>;
   prompt: (o: PromptOpts) => Promise<string | null>;
+  alert: (o: { title: string; description?: string; confirmText?: string }) => Promise<void>;
 };
 
 const AppDialogContext = createContext<Ctx | null>(null);
@@ -37,6 +38,7 @@ export function useAppDialog() {
 type State =
   | { kind: "confirm"; opts: ConfirmOpts; resolve: (v: boolean) => void }
   | { kind: "prompt"; opts: PromptOpts; resolve: (v: string | null) => void }
+  | { kind: "alert"; opts: ConfirmOpts; resolve: (v: boolean) => void }
   | null;
 
 export function AppDialogProvider({ children }: { children: ReactNode }) {
@@ -60,11 +62,19 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const api = useMemo(() => ({ confirm, prompt }), [confirm, prompt]);
+  const alertFn = useCallback(
+    (opts: { title: string; description?: string; confirmText?: string }) =>
+      new Promise<void>((resolve) => {
+        setState({ kind: "alert", opts, resolve: () => resolve() });
+      }),
+    [],
+  );
+
+  const api = useMemo(() => ({ confirm, prompt, alert: alertFn }), [confirm, prompt, alertFn]);
 
   function close(result: boolean | string | null) {
     if (!state) return;
-    if (state.kind === "confirm") state.resolve(result === true);
+    if (state.kind === "confirm" || state.kind === "alert") state.resolve(result === true);
     else state.resolve(result as string | null);
     setState(null);
   }
@@ -97,16 +107,18 @@ export function AppDialogProvider({ children }: { children: ReactNode }) {
             </div>
           )}
 
-          <DialogFooter className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-2">
-            <Button variant="outline" className="w-full" onClick={() => close(state?.kind === "confirm" ? false : null)}>
-              {state?.kind === "confirm" ? (state.opts.cancelText ?? "Batal") : "Batal"}
-            </Button>
+        <DialogFooter className={`mt-2 grid gap-2 ${state?.kind === "alert" ? "grid-cols-1 sm:grid-cols-1" : "grid-cols-2 sm:grid-cols-2"}`}>
+            {state?.kind !== "alert" && (
+              <Button variant="outline" className="w-full" onClick={() => close(state?.kind === "confirm" ? false : null)}>
+                {state?.kind === "confirm" ? (state.opts.cancelText ?? "Batal") : "Batal"}
+              </Button>
+            )}
             <Button
               className="w-full"
               variant={state?.kind === "confirm" && state.opts.destructive ? "destructive" : "default"}
-              onClick={() => close(state?.kind === "confirm" ? true : value)}
+              onClick={() => close(state?.kind === "prompt" ? value : true)}
             >
-              {state?.opts.confirmText ?? (state?.kind === "confirm" ? "Lanjut" : "Simpan")}
+              {state?.opts.confirmText ?? (state?.kind === "prompt" ? "Simpan" : "Lanjut")}
             </Button>
           </DialogFooter>
         </DialogContent>

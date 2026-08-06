@@ -4,6 +4,7 @@ import { Copy, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/AppShell";
 import { generateCreativePrompt } from "@/lib/ai.functions";
+import { useRequireOnline } from "@/lib/require-online";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +54,7 @@ const RATIOS = [
 ];
 
 function PromptPage() {
+  const requireOnline = useRequireOnline();
   const [form, setForm] = useState({
     category: CATEGORIES[0]!,
     style: STYLES[0]!,
@@ -68,6 +70,7 @@ function PromptPage() {
   const [result, setResult] = useState<Record<string, string> | null>(null);
 
   async function generate() {
+    if (!(await requireOnline("Membuat prompt dengan AI"))) return;
     if (!form.title.trim()) {
       toast.error("Isi judul/nama produk dulu");
       return;

@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 import { dateID } from "@/lib/format";
 import { youtubeEmbed } from "@/lib/format";
+import { cachedList, isOnline } from "@/lib/offline";
+import { useRequireOnline } from "@/lib/require-online";
 
 export const Route = createFileRoute("/_authenticated/info")({
   head: () => ({
@@ -19,16 +21,16 @@ export const Route = createFileRoute("/_authenticated/info")({
 });
 
 function InfoPage() {
+  const requireOnline = useRequireOnline();
   const { data: posts = [] } = useQuery({
     queryKey: ["info_posts"],
-    queryFn: async () => {
-      const { data } = await supabase
+    ...cachedList("info_posts", () =>
+      supabase
         .from("info_posts")
         .select("*")
         .order("is_pinned", { ascending: false })
-        .order("created_at", { ascending: false });
-      return data ?? [];
-    },
+        .order("created_at", { ascending: false }),
+    ),
   });
 
   return (
@@ -50,7 +52,7 @@ function InfoPage() {
               <h2 className="font-bold">{p.title}</h2>
               <p className="text-xs text-muted-foreground">{dateID(p.created_at)}</p>
               <p className="mt-2 whitespace-pre-wrap text-sm">{p.content}</p>
-              {embed && (
+              {embed && isOnline() && (
                 <div className="mt-3 aspect-video w-full overflow-hidden rounded-xl border border-border">
                   <iframe
                     src={embed}
@@ -61,11 +63,25 @@ function InfoPage() {
                   />
                 </div>
               )}
+              {embed && !isOnline() && (
+                <button
+                  onClick={() => void requireOnline("Memutar video")}
+                  className="mt-3 w-full rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground"
+                >
+                  Video hanya bisa diputar saat ada internet. Ketuk untuk info.
+                </button>
+              )}
               {p.link && !embed && (
                 <a
                   href={p.link}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={async (e) => {
+                    if (!isOnline()) {
+                      e.preventDefault();
+                      await requireOnline("Membuka tautan");
+                    }
+                  }}
                   className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
                 >
                   Buka tautan <ExternalLink className="h-3.5 w-3.5" />

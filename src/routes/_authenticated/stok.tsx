@@ -8,7 +8,10 @@ import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
 import { ProductImage } from "@/components/ProductImage";
 import { useAppDialog } from "@/components/app-dialog";
-import { downloadCSV, num, rupiah } from "@/lib/format";
+import { digitsOnly, downloadCSV, num, numInput, rupiah, thousands } from "@/lib/format";
+import { cachedList, dbDelete, dbInsert, dbUpdate, isOnline, removeLocal, upsertLocal } from "@/lib/offline";
+import { syncProductCost } from "@/lib/hpp-sync";
+import { useRequireOnline } from "@/lib/require-online";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,6 +43,7 @@ const emptyProduct = { name: "", price: "", cost: "", stock: "", sku: "", low: "
 function StokPage() {
   const { tenant, profile } = useAuth();
   const dialog = useAppDialog();
+  const requireOnline = useRequireOnline();
   const { filter } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const qc = useQueryClient();
@@ -55,42 +59,38 @@ function StokPage() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("*").eq("tenant_id", tenantId!).order("name");
-      return data ?? [];
-    },
+    ...cachedList(`products:${tenantId}`, () =>
+      supabase.from("products").select("*").eq("tenant_id", tenantId!).order("name"),
+    ),
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("*").eq("tenant_id", tenantId!).order("name");
-      return data ?? [];
-    },
+    ...cachedList(`categories:${tenantId}`, () =>
+      supabase.from("categories").select("*").eq("tenant_id", tenantId!).order("name"),
+    ),
   });
 
   const { data: items = [] } = useQuery({
     queryKey: ["stock_items", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from("stock_items").select("*").eq("tenant_id", tenantId!).order("name");
-      return data ?? [];
-    },
+    ...cachedList(`stock_items:${tenantId}`, () =>
+      supabase.from("stock_items").select("*").eq("tenant_id", tenantId!).order("name"),
+    ),
   });
 
   const { data: movements = [] } = useQuery({
     queryKey: ["stock_movements", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
+    ...cachedList(`stock_movements:${tenantId}`, () =>
+      supabase
         .from("stock_movements")
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false })
-        .limit(500);
-      return data ?? [];
-    },
+        .limit(500),
+    ),
   });
 
   const shown = products.filter((x) => {
@@ -101,18 +101,25 @@ function StokPage() {
 
   async function addCategory() {
     if (!tenantId || !newCat.trim()) return;
-    const { error } = await supabase.from("categories").insert({ tenant_id: tenantId, name: newCat.trim() });
-    if (error) {
-      toast.error("Gagal menambah kategori", { description: error.message });
+    const row = {
+      id: crypto.randomUUID(),
+      tenant_id: tenantId,
+      name: newCat.trim(),
+      created_at: new Date().toISOString(),
+    };
+    const res = await dbInsert("categories", [row]);
+    if (!res.ok) {
+      toast.error("Gagal menambah kategori", { description: res.error });
       return;
     }
+    upsertLocal(qc, ["categories", tenantId], `categories:${tenantId}`, row, false);
     setNewCat("");
-    void qc.invalidateQueries({ queryKey: ["categories", tenantId] });
     toast.success("Kategori ditambahkan");
   }
 
   async function uploadImage(file: File) {
     if (!tenantId) return;
+    if (!(await requireOnline("Mengunggah foto produk"))) return;
     if (file.size > 5 * 1024 * 1024) {
       toast.error("Ukuran gambar maksimal 5 MB");
       return;
@@ -150,27 +157,37 @@ function StokPage() {
       toast.error("Nama produk wajib diisi");
       return;
     }
+    const costValue = p.cost.trim() === "" ? null : Number(p.cost);
     const payload = {
       name: p.name.trim(),
       price: Number(p.price || 0),
-      cost: p.cost.trim() === "" ? null : Number(p.cost),
+      cost: costValue,
       stock: Number(p.stock || 0),
       sku: p.sku.trim() || null,
       low_stock_threshold: Number(p.low || 0),
       category_id: p.categoryId === "none" ? null : p.categoryId,
       image_url: p.imagePath || null,
     };
-    const { error } = editingId
-      ? await supabase.from("products").update(payload).eq("id", editingId)
-      : await supabase.from("products").insert({ tenant_id: tenantId, ...payload });
-    if (error) {
-      toast.error("Gagal menyimpan", { description: error.message });
+    const id = editingId ?? crypto.randomUUID();
+    const row = { id, tenant_id: tenantId, created_at: new Date().toISOString(), ...payload };
+    const res = editingId ? await dbUpdate("products", editingId, payload) : await dbInsert("products", [row]);
+    if (!res.ok) {
+      toast.error("Gagal menyimpan", { description: res.error });
       return;
+    }
+    upsertLocal(qc, ["products", tenantId], `products:${tenantId}`, row, false);
+    // Modal terisi → transaksi lama yang belum punya modal ikut diperbarui.
+    if (costValue && costValue > 0 && isOnline()) {
+      await syncProductCost(tenantId, id, costValue);
+      void qc.invalidateQueries({ queryKey: ["dashboard", tenantId] });
+      void qc.invalidateQueries({ queryKey: ["transaction_items", tenantId] });
     }
     setP({ ...emptyProduct });
     setEditingId(null);
     void qc.invalidateQueries({ queryKey: ["products", tenantId] });
-    toast.success(editingId ? "Produk diperbarui" : "Produk ditambahkan");
+    toast.success(editingId ? "Produk diperbarui" : "Produk ditambahkan", {
+      description: res.queued ? "Tersimpan offline, akan tersinkron saat online." : undefined,
+    });
   }
 
   async function addItem() {
@@ -178,7 +195,8 @@ function StokPage() {
       toast.error("Nama bahan wajib diisi");
       return;
     }
-    const { error } = await supabase.from("stock_items").insert({
+    const row = {
+      id: crypto.randomUUID(),
       tenant_id: tenantId,
       name: it.name.trim(),
       kind: it.kind,
@@ -187,14 +205,18 @@ function StokPage() {
       min_qty: Number(it.min || 0),
       unit_cost: Number(it.cost || 0),
       supplier: it.supplier.trim() || null,
-    });
-    if (error) {
-      toast.error("Gagal menyimpan", { description: error.message });
+      created_at: new Date().toISOString(),
+    };
+    const res = await dbInsert("stock_items", [row]);
+    if (!res.ok) {
+      toast.error("Gagal menyimpan", { description: res.error });
       return;
     }
+    upsertLocal(qc, ["stock_items", tenantId], `stock_items:${tenantId}`, row, false);
     setIt({ name: "", kind: "bahan", unit: "pcs", qty: "", min: "", cost: "", supplier: "" });
-    void qc.invalidateQueries({ queryKey: ["stock_items", tenantId] });
-    toast.success("Bahan ditambahkan");
+    toast.success("Bahan ditambahkan", {
+      description: res.queued ? "Tersimpan offline, akan tersinkron saat online." : undefined,
+    });
   }
 
   async function move(itemId: string, direction: "in" | "out", currentQty: number) {
@@ -207,19 +229,20 @@ function StokPage() {
     if (raw === null) return;
     const qty = Number(raw ?? 0);
     if (!qty) return;
-    await supabase.from("stock_movements").insert({
+    await dbInsert("stock_movements", [
+      {
+        id: crypto.randomUUID(),
       tenant_id: tenantId!,
       item_id: itemId,
       direction,
       qty,
       created_by_name: profile?.full_name ?? null,
-    });
-    await supabase
-      .from("stock_items")
-      .update({ qty: direction === "in" ? currentQty + qty : currentQty - qty })
-      .eq("id", itemId);
-    void qc.invalidateQueries({ queryKey: ["stock_items", tenantId] });
-    void qc.invalidateQueries({ queryKey: ["stock_movements", tenantId] });
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    const nextQty = direction === "in" ? currentQty + qty : currentQty - qty;
+    await dbUpdate("stock_items", itemId, { qty: nextQty });
+    upsertLocal(qc, ["stock_items", tenantId], `stock_items:${tenantId}`, { id: itemId, qty: nextQty } as never, false);
   }
 
   return (
@@ -248,8 +271,8 @@ function StokPage() {
               )}
             </div>
             <Field label="Nama produk" value={p.name} onChange={(v) => setP({ ...p, name: v })} />
-            <Field label="Harga jual" value={p.price} onChange={(v) => setP({ ...p, price: v })} numeric />
-            <Field label="Modal/HPP" value={p.cost} onChange={(v) => setP({ ...p, cost: v })} numeric />
+            <Field label="Harga jual" value={p.price} onChange={(v) => setP({ ...p, price: v })} currency />
+            <Field label="Modal/HPP" value={p.cost} onChange={(v) => setP({ ...p, cost: v })} currency />
             <Field label="Stok" value={p.stock} onChange={(v) => setP({ ...p, stock: v })} numeric />
             <Field label="SKU" value={p.sku} onChange={(v) => setP({ ...p, sku: v })} />
             <Field label="Batas stok menipis" value={p.low} onChange={(v) => setP({ ...p, low: v })} numeric />
@@ -386,8 +409,9 @@ function StokPage() {
                         destructive: true,
                       });
                       if (!ok) return;
-                      await supabase.from("products").delete().eq("id", x.id);
-                      void qc.invalidateQueries({ queryKey: ["products", tenantId] });
+                      if (!(await requireOnline("Menghapus produk"))) return;
+                      await dbDelete("products", x.id);
+                      removeLocal(qc, ["products", tenantId], `products:${tenantId}`, x.id);
                       toast.success("Produk dihapus");
                     }}
                   >
@@ -406,7 +430,7 @@ function StokPage() {
             <Field label="Satuan" value={it.unit} onChange={(v) => setIt({ ...it, unit: v })} />
             <Field label="Jumlah" value={it.qty} onChange={(v) => setIt({ ...it, qty: v })} numeric />
             <Field label="Stok minimum" value={it.min} onChange={(v) => setIt({ ...it, min: v })} numeric />
-            <Field label="Harga satuan" value={it.cost} onChange={(v) => setIt({ ...it, cost: v })} numeric />
+            <Field label="Harga satuan" value={it.cost} onChange={(v) => setIt({ ...it, cost: v })} currency />
             <Field label="Pemasok" value={it.supplier} onChange={(v) => setIt({ ...it, supplier: v })} />
             <Button onClick={() => void addItem()} className="sm:col-span-3">
               <Plus className="mr-2 h-4 w-4" /> Tambah Bahan
@@ -483,8 +507,9 @@ function StokPage() {
                       variant="ghost"
                       className="ml-auto text-destructive"
                       onClick={async () => {
-                        await supabase.from("stock_items").delete().eq("id", x.id);
-                        void qc.invalidateQueries({ queryKey: ["stock_items", tenantId] });
+                        if (!(await requireOnline("Menghapus bahan"))) return;
+                        await dbDelete("stock_items", x.id);
+                        removeLocal(qc, ["stock_items", tenantId], `stock_items:${tenantId}`, x.id);
                       }}
                     >
                       Hapus
@@ -505,16 +530,41 @@ function Field({
   value,
   onChange,
   numeric,
+  currency,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   numeric?: boolean;
+  currency?: boolean;
 }) {
+  if (currency) {
+    return (
+      <div className="space-y-1">
+        <Label className="text-xs">{label}</Label>
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+            Rp
+          </span>
+          <Input
+            className="num pl-8"
+            inputMode="numeric"
+            value={thousands(value)}
+            onChange={(e) => onChange(digitsOnly(e.target.value))}
+          />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} inputMode={numeric ? "decimal" : undefined} />
+      <Input
+        value={value}
+        className={numeric ? "num" : undefined}
+        onChange={(e) => onChange(numeric ? numInput(e.target.value) : e.target.value)}
+        inputMode={numeric ? "decimal" : undefined}
+      />
     </div>
   );
 }
