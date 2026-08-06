@@ -19,7 +19,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
-import { dateTimeID, downloadCSV, rupiah, txCode, parseNum, num } from "@/lib/format";
+import { dateTimeID, downloadCSV, rupiah, txCode, parseNum, num, thousands, digitsOnly } from "@/lib/format";
+import { cachedList, dbInsert, dbUpdate, patchLocal, upsertLocal } from "@/lib/offline";
 import { Receipt, StatusBadge, type ReceiptData } from "@/components/Receipt";
 import { ReceiptActions } from "@/components/ReceiptActions";
 import { ProductImage } from "@/components/ProductImage";
@@ -68,47 +69,43 @@ function KasirPage() {
   const { data: products = [] } = useQuery({
     queryKey: ["products", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from("products").select("*").eq("tenant_id", tenantId!).order("name");
-      return data ?? [];
-    },
+    ...cachedList(`products:${tenantId}`, () =>
+      supabase.from("products").select("*").eq("tenant_id", tenantId!).order("name"),
+    ),
   });
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase.from("categories").select("*").eq("tenant_id", tenantId!).order("name");
-      return data ?? [];
-    },
+    ...cachedList(`categories:${tenantId}`, () =>
+      supabase.from("categories").select("*").eq("tenant_id", tenantId!).order("name"),
+    ),
   });
 
   const { data: history = [] } = useQuery({
     queryKey: ["transactions", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
+    ...cachedList(`transactions:${tenantId}`, () =>
+      supabase
         .from("transactions")
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false })
-        .limit(500);
-      return data ?? [];
-    },
+        .limit(500),
+    ),
   });
 
   const { data: cash = [] } = useQuery({
     queryKey: ["cash_entries", tenantId],
     enabled: !!tenantId,
-    queryFn: async () => {
-      const { data } = await supabase
+    ...cachedList(`cash_entries:${tenantId}`, () =>
+      supabase
         .from("cash_entries")
         .select("*")
         .eq("tenant_id", tenantId!)
         .order("created_at", { ascending: false })
-        .limit(500);
-      return data ?? [];
-    },
+        .limit(500),
+    ),
   });
 
   /* ---------------- POS state ---------------- */
