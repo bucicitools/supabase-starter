@@ -11,9 +11,11 @@ import {
   Minus,
   Plus,
   Printer,
+  QrCode,
   Search,
   ShoppingCart,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -127,6 +129,7 @@ function KasirPage() {
   const [view, setView] = useState<"card" | "list">("card");
   const [hit, setHit] = useState<string | null>(null);
   const [qtyDraft, setQtyDraft] = useState<Record<number, string>>({});
+  const [qrisOpen, setQrisOpen] = useState(false);
   const hitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const qtyInCart = (id: string) => cart.find((l) => l.productId === id)?.qty ?? 0;
@@ -728,6 +731,17 @@ function KasirPage() {
                   />
                 </div>
               )}
+              {/* Tombol QRIS saat metode pelunasan adalah QRIS */}
+              {settleMethod === "QRIS" && (
+                <Button
+                  variant="outline"
+                  className="h-11 w-full"
+                  onClick={() => setQrisOpen(true)}
+                  disabled={!tenant?.receipt_qris_url}
+                >
+                  <QrCode className="mr-2 h-4 w-4" /> Tampilkan QRIS
+                </Button>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <Button className="h-12" onClick={() => void confirmSettle()}>
                   Konfirmasi Lunas
@@ -898,9 +912,26 @@ function KasirPage() {
                 </>
               )}
 
-              <Button disabled={saving} onClick={() => void checkout()} className="h-12 w-full text-base font-bold">
-                {payNow ? "Simpan & Cetak Struk" : "Simpan Bayar Nanti"}
-              </Button>
+              {/* Tombol checkout — dua tombol saat QRIS dipilih */}
+              {payNow && method === "QRIS" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="h-12 text-sm font-bold"
+                    onClick={() => setQrisOpen(true)}
+                    disabled={!tenant?.receipt_qris_url}
+                  >
+                    <QrCode className="mr-2 h-4 w-4" /> Tampilkan QRIS
+                  </Button>
+                  <Button disabled={saving} onClick={() => void checkout()} className="h-12 text-sm font-bold">
+                    Simpan & Cetak Struk
+                  </Button>
+                </div>
+              ) : (
+                <Button disabled={saving} onClick={() => void checkout()} className="h-12 w-full text-base font-bold">
+                  {payNow ? "Simpan & Cetak Struk" : "Simpan Bayar Nanti"}
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -1196,134 +1227,159 @@ function KasirPage() {
           </div>
 
           <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="font-bold">Rincian Menu Terjual</p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  downloadCSV(
-                    "menu-terjual-bucici.csv",
-                    soldQty.map(([name, v]) => ({ menu: name, qty: v.qty, omzet: v.total })),
-                  )
-                }
-              >
-                <Download className="mr-2 h-4 w-4" /> CSV
-              </Button>
-            </div>
-            {soldQty.length === 0 && <p className="text-sm text-muted-foreground">Belum ada menu terjual pada periode ini.</p>}
-            <div className="x-scroll">
-              {soldQty.length > 0 && (
-                <table className="w-full min-w-[420px] text-sm">
-                  <thead>
-                    <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
-                      <th className="py-1.5">Menu</th>
-                      <th className="py-1.5 text-right">Qty</th>
-                      <th className="py-1.5 text-right">Omzet</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {soldQty.map(([name, v]) => (
-                      <tr key={name} className="border-t border-border/60">
-                        <td className="py-1.5 pr-2">{name}</td>
-                        <td className="num py-1.5 text-right font-semibold">{num(v.qty)}</td>
-                        <td className="num py-1.5 text-right">{rupiah(v.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
+            <p className="mb-3 font-bold">Omzet per Metode</p>
+            {byMethod.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada transaksi lunas.</p>
+            ) : (
+              <div className="space-y-2">
+                {byMethod.map(([k, v]) => (
+                  <Row key={k} label={k} value={rupiah(v)} />
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-              <p className="mb-2 font-bold">Metode Pembayaran</p>
-              {byMethod.length === 0 && <p className="text-sm text-muted-foreground">Belum ada transaksi pada periode ini.</p>}
-              {byMethod.map(([m, v]) => (
-                <div key={m} className="flex justify-between py-1 text-sm">
-                  <span className="text-muted-foreground">{m}</span>
-                  <span className="font-semibold">{rupiah(v)}</span>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-              <p className="mb-2 font-bold">Kinerja Kasir</p>
-              {byCashier.length === 0 && <p className="text-sm text-muted-foreground">Belum ada transaksi pada periode ini.</p>}
-              {byCashier.map(([n, v]) => (
-                <div key={n} className="flex justify-between py-1 text-sm">
-                  <span className="text-muted-foreground">
-                    {n} · {v.n} trx
-                  </span>
-                  <span className="font-semibold">{rupiah(v.total)}</span>
-                </div>
-              ))}
-            </div>
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <p className="mb-3 font-bold">Per Kasir</p>
+            {byCashier.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada transaksi.</p>
+            ) : (
+              <div className="space-y-2">
+                {byCashier.map(([k, v]) => (
+                  <div key={k} className="flex items-center justify-between text-sm">
+                    <span>{k}</span>
+                    <span className="font-semibold">
+                      {v.n} trx · {rupiah(v.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
+          {soldQty.length > 0 && (
+            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+              <p className="mb-3 font-bold">Menu Terjual</p>
+              <div className="space-y-2">
+                {soldQty.map(([name, v]) => (
+                  <div key={name} className="flex items-center justify-between text-sm">
+                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                    <span className="ml-2 shrink-0 font-semibold">
+                      {num(v.qty)}× · {rupiah(v.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
+      {/* ================= STRUK DIALOG ================= */}
       <Dialog open={!!receipt} onOpenChange={(o) => !o && setReceipt(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader className="no-print">
-            <DialogTitle>Struk Transaksi</DialogTitle>
+        <DialogContent className="max-w-sm rounded-3xl p-4">
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-base">Struk Transaksi</DialogTitle>
           </DialogHeader>
           {receipt && (
-            <Receipt
-              data={receipt}
-              header={tenant?.receipt_header || tenant?.business_name}
-              address={tenant?.receipt_address}
-              phone={tenant?.receipt_phone}
-              footer={tenant?.receipt_footer}
-              extra={tenant?.receipt_extra}
-            />
-          )}
-          <DialogFooter className="no-print">
-            {receipt && (
+            <div className="space-y-3">
+              <Receipt
+                data={receipt}
+                header={tenant?.receipt_header}
+                address={tenant?.receipt_address}
+                phone={tenant?.receipt_phone}
+                footer={tenant?.receipt_footer}
+                extra={tenant?.receipt_extra}
+              />
               <ReceiptActions
                 data={receipt}
                 shop={{
-                  header: tenant?.receipt_header || tenant?.business_name || "BUCICI",
+                  header: tenant?.receipt_header ?? tenant?.business_name ?? "",
                   address: tenant?.receipt_address ?? "",
                   phone: tenant?.receipt_phone ?? "",
                   footer: tenant?.receipt_footer ?? "",
                   extra: tenant?.receipt_extra ?? "",
                 }}
               />
-            )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" className="w-full" onClick={() => setReceipt(null)}>
+              Tutup
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ================= QRIS OVERLAY ================= */}
+      {qrisOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6"
+          onClick={() => setQrisOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-xs rounded-3xl bg-white p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              aria-label="Tutup"
+              onClick={() => setQrisOpen(false)}
+              className="absolute right-3 top-3 rounded-full bg-black/10 p-1.5 hover:bg-black/20"
+            >
+              <X className="h-5 w-5 text-gray-700" />
+            </button>
+            <p className="mb-3 text-center text-sm font-bold text-gray-800">Scan QRIS untuk Pembayaran</p>
+            {tenant?.receipt_qris_url ? (
+              <img
+                src={tenant.receipt_qris_url}
+                alt="QRIS"
+                className="w-full rounded-xl"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <p className="py-10 text-center text-sm text-gray-500">
+                URL gambar QRIS belum diatur. Silakan atur di Pengaturan Toko.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between text-sm">
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="font-semibold">{value}</span>
     </div>
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "brand" | "success" | "destructive" }) {
+function Stat({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "brand" | "success" | "destructive";
+}) {
+  const cls =
+    tone === "brand"
+      ? "brand-gradient text-primary-foreground shadow-brand"
+      : tone === "success"
+        ? "bg-success/10 text-success"
+        : tone === "destructive"
+          ? "bg-destructive/10 text-destructive"
+          : "border border-border bg-card";
   return (
-    <div
-      className={`rounded-2xl p-4 shadow-soft ${
-        tone === "brand" ? "brand-gradient text-primary-foreground" : "border border-border bg-card"
-      }`}
-    >
-      <p className={`text-[11px] uppercase tracking-wider ${tone === "brand" ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-        {label}
-      </p>
-      <p
-        className={`mt-1 text-xl font-black leading-tight ${
-          tone === "success" ? "text-success" : tone === "destructive" ? "text-destructive" : ""
-        }`}
-      >
-        {value}
-      </p>
+    <div className={`rounded-2xl p-4 ${cls}`}>
+      <p className="text-xs font-semibold uppercase tracking-wider opacity-80">{label}</p>
+      <p className="num mt-1 text-xl font-black">{value}</p>
     </div>
   );
 }
