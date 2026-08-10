@@ -51,10 +51,15 @@ const PREVIEW: ReceiptData = {
   cashier: "Kasir 1",
 };
 
-/** Upload gambar ke Supabase Storage (bucket product-images) dan kembalikan public URL */
+/**
+ * Upload gambar QRIS ke Supabase Storage (bucket product-images).
+ * Path: {tenantId}/qris-{timestamp}.{ext}
+ * Folder pertama = tenantId agar sesuai policy RLS storage.
+ */
 async function uploadQrisImage(file: File, tenantId: string): Promise<string> {
   const ext = file.name.split(".").pop() ?? "png";
-  const path = `qris/${tenantId}-${Date.now()}.${ext}`;
+  // PENTING: folder pertama HARUS berupa tenantId (uuid) agar lolos policy storage
+  const path = `${tenantId}/qris-${Date.now()}.${ext}`;
   const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
   if (error) throw new Error(error.message);
   const { data } = supabase.storage.from("product-images").getPublicUrl(path);
