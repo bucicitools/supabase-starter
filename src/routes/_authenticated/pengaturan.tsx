@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Loader2, Moon, Pencil, Plus, Sun, Trash2 } from "lucide-react";
+import { ImageIcon, KeyRound, Loader2, Moon, Pencil, Plus, Sun, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -61,6 +61,7 @@ function SettingsPage() {
   const [dark, setDark] = useState(false);
   const [taxOn, setTaxOn] = useState(false);
   const [editMember, setEditMember] = useState<{ id: string; name: string; tools: string[] } | null>(null);
+  const [qrisPreview, setQrisPreview] = useState(false);
   const [store, setStore] = useState({
     business_name: "",
     default_tax: "0",
@@ -69,6 +70,7 @@ function SettingsPage() {
     receipt_phone: "",
     receipt_extra: "",
     receipt_footer: "",
+    receipt_qris_url: "",
   });
   const [member, setMember] = useState<{ fullName: string; email: string; password: string; tools: string[] }>({
     fullName: "",
@@ -95,6 +97,7 @@ function SettingsPage() {
       receipt_phone: tenant.receipt_phone ?? "",
       receipt_extra: tenant.receipt_extra ?? "",
       receipt_footer: tenant.receipt_footer ?? "",
+      receipt_qris_url: tenant.receipt_qris_url ?? "",
     });
   }, [tenant]);
 
@@ -161,6 +164,7 @@ function SettingsPage() {
         receipt_phone: store.receipt_phone.trim() || null,
         receipt_extra: store.receipt_extra.trim() || null,
         receipt_footer: store.receipt_footer.trim() || null,
+        receipt_qris_url: store.receipt_qris_url.trim() || null,
       })
       .eq("id", tenantId);
     if (error) {
@@ -245,6 +249,53 @@ function SettingsPage() {
             />
           </div>
           <F label="Catatan kaki struk" value={store.receipt_footer} onChange={(v) => setStore({ ...store, receipt_footer: v })} />
+
+          {/* ---- QRIS ---- */}
+          <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+            <p className="text-sm font-semibold">Gambar QRIS Pembayaran</p>
+            <p className="text-[11px] text-muted-foreground">
+              Tempel URL gambar QRIS toko. Kasir bisa menampilkan gambar ini saat pelanggan memilih metode QRIS.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                value={store.receipt_qris_url}
+                onChange={(e) => setStore({ ...store, receipt_qris_url: e.target.value })}
+                placeholder="https://example.com/qris-toko.png"
+                className="flex-1"
+                disabled={!isOwner}
+              />
+              {store.receipt_qris_url && (
+                <>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    aria-label="Pratinjau QRIS"
+                    onClick={() => setQrisPreview(true)}
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    aria-label="Hapus URL QRIS"
+                    onClick={() => setStore({ ...store, receipt_qris_url: "" })}
+                    disabled={!isOwner}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+            {store.receipt_qris_url && (
+              <p className="text-[11px] text-muted-foreground">
+                Klik ikon gambar untuk pratinjau. Pastikan URL bisa diakses publik.
+              </p>
+            )}
+          </div>
+
           <Button onClick={() => void saveStore()} disabled={!isOwner} className="w-full">
             Simpan Pengaturan
           </Button>
@@ -467,6 +518,37 @@ function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog pratinjau gambar QRIS */}
+      {qrisPreview && store.receipt_qris_url && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setQrisPreview(false)}
+        >
+          <div
+            className="relative max-w-sm w-full rounded-2xl bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              aria-label="Tutup pratinjau"
+              onClick={() => setQrisPreview(false)}
+              className="absolute right-3 top-3 rounded-full bg-black/10 p-1.5 hover:bg-black/20"
+            >
+              <X className="h-5 w-5 text-gray-700" />
+            </button>
+            <p className="mb-3 text-center text-sm font-bold text-gray-800">Pratinjau Gambar QRIS</p>
+            <img
+              src={store.receipt_qris_url}
+              alt="QRIS Pratinjau"
+              className="w-full rounded-xl"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src =
+                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-size='14'%3EGambar tidak ditemukan%3C/text%3E%3C/svg%3E";
+              }}
+            />
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
