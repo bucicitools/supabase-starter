@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ImageIcon, KeyRound, Loader2, Moon, Pencil, Plus, Sun, Trash2, X } from "lucide-react";
+import { ImageIcon, KeyRound, Loader2, Moon, Pencil, Plus, Sun, Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
@@ -51,6 +51,16 @@ const PREVIEW: ReceiptData = {
   cashier: "Kasir 1",
 };
 
+/** Upload gambar ke Supabase Storage (bucket product-images) dan kembalikan public URL */
+async function uploadQrisImage(file: File, tenantId: string): Promise<string> {
+  const ext = file.name.split(".").pop() ?? "png";
+  const path = `qris/${tenantId}-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+  if (error) throw new Error(error.message);
+  const { data } = supabase.storage.from("product-images").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 function SettingsPage() {
   const { tenant, profile, role, refresh } = useAuth();
   const dialog = useAppDialog();
@@ -62,6 +72,10 @@ function SettingsPage() {
   const [taxOn, setTaxOn] = useState(false);
   const [editMember, setEditMember] = useState<{ id: string; name: string; tools: string[] } | null>(null);
   const [qrisPreview, setQrisPreview] = useState(false);
+  const [qrisUploading, setQrisUploading] = useState(false);
+  const [qrisDragging, setQrisDragging] = useState(false);
+  const qrisInputRef = useRef<HTMLInputElement>(null);
+
   const [store, setStore] = useState({
     business_name: "",
     default_tax: "0",
@@ -111,10 +125,47 @@ function SettingsPage() {
         .eq("tenant_id", tenantId!)
         .order("full_name");
       const ownerId = tenant?.owner_id ?? null;
-      // Daftar tim hanya menampilkan anggota — pemilik toko & diri sendiri disembunyikan.
       return (data ?? []).filter((m) => m.id !== ownerId && m.id !== profile?.id);
     },
   });
+
+  /** Handle file upload (dari input atau drag & drop) */
+  const handleQrisFile = useCallback(
+    async (file: File) => {
+      if (!tenantId) return;
+      if (!file.type.startsWith("image/")) {
+        toast.error("File harus berupa gambar (JPG, PNG, dll)");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Ukuran file maksimal 5 MB");
+        return;
+      }
+      setQrisUploading(true);
+      try {
+        const url = await uploadQrisImage(file, tenantId);
+        setStore((s) => ({ ...s, receipt_qris_url: url }));
+        toast.success("Gambar QRIS berhasil diunggah");
+      } catch (e) {
+        toast.error("Gagal mengunggah gambar", { description: e instanceof Error ? e.message : "Error tidak diketahui" });
+      } finally {
+        setQrisUploading(false);
+      }
+    },
+    [tenantId],
+  );
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setQrisDragging(true);
+  };
+  const onDragLeave = () => setQrisDragging(false);
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setQrisDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) void handleQrisFile(file);
+  };
 
   async function changePassword() {
     if (pw.next.length < 6) {
@@ -254,14 +305,58 @@ function SettingsPage() {
           <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
             <p className="text-sm font-semibold">Gambar QRIS Pembayaran</p>
             <p className="text-[11px] text-muted-foreground">
-              Tempel URL gambar QRIS toko. Kasir bisa menampilkan gambar ini saat pelanggan memilih metode QRIS.
+              Upload gambar QRIS toko. Kasir bisa menampilkannya saat pelanggan memilih metode QRIS.
             </p>
+
+            {/* Area drag & drop */}
+            {isOwner && (
+              <div
+                className={`relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 transition ${
+                  qrisDragging
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background hover:border-primary hover:bg-primary/5"
+                }`}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                onClick={() => qrisInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && qrisInputRef.current?.click()}
+                aria-label="Upload gambar QRIS"
+              >
+                <input
+                  ref={qrisInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleQrisFile(file);
+                    e.target.value = "";
+                  }}
+                />
+                {qrisUploading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                ) : (
+                  <Upload className="h-6 w-6 text-muted-foreground" />
+                )}
+                <p className="text-center text-xs text-muted-foreground">
+                  {qrisUploading
+                    ? "Mengunggah…"
+                    : "Klik atau drag & drop gambar QRIS di sini"}
+                </p>
+                <p className="text-[10px] text-muted-foreground">JPG, PNG, maks. 5 MB</p>
+              </div>
+            )}
+
+            {/* URL manual + preview */}
             <div className="flex gap-2">
               <Input
                 value={store.receipt_qris_url}
                 onChange={(e) => setStore({ ...store, receipt_qris_url: e.target.value })}
-                placeholder="https://example.com/qris-toko.png"
-                className="flex-1"
+                placeholder="https://... (atau gunakan upload di atas)"
+                className="flex-1 text-xs"
                 disabled={!isOwner}
               />
               {store.receipt_qris_url && (
@@ -289,11 +384,6 @@ function SettingsPage() {
                 </>
               )}
             </div>
-            {store.receipt_qris_url && (
-              <p className="text-[11px] text-muted-foreground">
-                Klik ikon gambar untuk pratinjau. Pastikan URL bisa diakses publik.
-              </p>
-            )}
           </div>
 
           <Button onClick={() => void saveStore()} disabled={!isOwner} className="w-full">
