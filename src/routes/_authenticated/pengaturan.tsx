@@ -52,18 +52,32 @@ const PREVIEW: ReceiptData = {
 };
 
 /**
- * Upload gambar QRIS ke Supabase Storage (bucket product-images).
- * Path: {tenantId}/qris-{timestamp}.{ext}
- * Folder pertama = tenantId agar sesuai policy RLS storage.
+ * Konversi File gambar ke base64 data URL dengan resize max 800px.
+ * Hasil disimpan langsung ke database — tidak perlu Storage bucket.
  */
-async function uploadQrisImage(file: File, tenantId: string): Promise<string> {
-  const ext = file.name.split(".").pop() ?? "png";
-  // PENTING: folder pertama HARUS berupa tenantId (uuid) agar lolos policy storage
-  const path = `${tenantId}/qris-${Date.now()}.${ext}`;
-  const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
-  if (error) throw new Error(error.message);
-  const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-  return data.publicUrl;
+function fileToDataUrl(file: File, maxSize = 800): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas tidak tersedia")); return; }
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => reject(new Error("Gagal memuat gambar"));
+      img.src = ev.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("Gagal membaca file"));
+    reader.readAsDataURL(file);
+  });
 }
 
 function SettingsPage() {
@@ -76,7 +90,6 @@ function SettingsPage() {
   const [dark, setDark] = useState(false);
   const [taxOn, setTaxOn] = useState(false);
   const [editMember, setEditMember] = useState<{ id: string; name: string; tools: string[] } | null>(null);
-  const [qrisPreview, setQrisPreview] = useState(false);
   const [qrisUploading, setQrisUploading] = useState(false);
   const [qrisDragging, setQrisDragging] = useState(false);
   const qrisInputRef = useRef<HTMLInputElement>(null);
@@ -134,7 +147,10 @@ function SettingsPage() {
     },
   });
 
-  /** Handle file upload (dari input atau drag & drop) */
+  /**
+   * Terima file gambar → konversi ke base64 → simpan langsung ke DB → refresh context.
+   * Tidak menggunakan Supabase Storage sama sekali.
+   */
   const handleQrisFile = useCallback(
     async (file: File) => {
       if (!tenantId) return;
@@ -142,28 +158,33 @@ function SettingsPage() {
         toast.error("File harus berupa gambar (JPG, PNG, dll)");
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("Ukuran file maksimal 5 MB");
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Ukuran file maksimal 10 MB");
         return;
       }
       setQrisUploading(true);
       try {
-        const url = await uploadQrisImage(file, tenantId);
-        setStore((s) => ({ ...s, receipt_qris_url: url }));
-        toast.success("Gambar QRIS berhasil diunggah");
+        const dataUrl = await fileToDataUrl(file);
+        // Simpan langsung ke database tanpa Storage
+        const { error } = await supabase
+          .from("tenants")
+          .update({ receipt_qris_url: dataUrl })
+          .eq("id", tenantId);
+        if (error) throw new Error(error.message);
+        // Update state lokal & refresh auth context agar kasir langsung dapat datanya
+        setStore((s) => ({ ...s, receipt_qris_url: dataUrl }));
+        await refresh();
+        toast.success("Gambar QRIS berhasil disimpan");
       } catch (e) {
-        toast.error("Gagal mengunggah gambar", { description: e instanceof Error ? e.message : "Error tidak diketahui" });
+        toast.error("Gagal menyimpan gambar", { description: e instanceof Error ? e.message : "Error tidak diketahui" });
       } finally {
         setQrisUploading(false);
       }
     },
-    [tenantId],
+    [tenantId, refresh],
   );
 
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setQrisDragging(true);
-  };
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); setQrisDragging(true); };
   const onDragLeave = () => setQrisDragging(false);
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -173,31 +194,15 @@ function SettingsPage() {
   };
 
   async function changePassword() {
-    if (pw.next.length < 6) {
-      toast.error("Password baru minimal 6 karakter");
-      return;
-    }
-    if (pw.next !== pw.confirm) {
-      toast.error("Konfirmasi password tidak cocok");
-      return;
-    }
+    if (pw.next.length < 6) { toast.error("Password baru minimal 6 karakter"); return; }
+    if (pw.next !== pw.confirm) { toast.error("Konfirmasi password tidak cocok"); return; }
     if (!profile?.email) return;
     setPwBusy(true);
-    const { error: signErr } = await supabase.auth.signInWithPassword({
-      email: profile.email,
-      password: pw.old,
-    });
-    if (signErr) {
-      setPwBusy(false);
-      toast.error("Password lama salah");
-      return;
-    }
+    const { error: signErr } = await supabase.auth.signInWithPassword({ email: profile.email, password: pw.old });
+    if (signErr) { setPwBusy(false); toast.error("Password lama salah"); return; }
     const { error } = await supabase.auth.updateUser({ password: pw.next });
     setPwBusy(false);
-    if (error) {
-      toast.error("Gagal mengganti password", { description: error.message });
-      return;
-    }
+    if (error) { toast.error("Gagal mengganti password", { description: error.message }); return; }
     setPw({ old: "", next: "", confirm: "" });
     toast.success("Password berhasil diganti");
   }
@@ -223,10 +228,7 @@ function SettingsPage() {
         receipt_qris_url: store.receipt_qris_url.trim() || null,
       })
       .eq("id", tenantId);
-    if (error) {
-      toast.error("Gagal menyimpan", { description: error.message });
-      return;
-    }
+    if (error) { toast.error("Gagal menyimpan", { description: error.message }); return; }
     await refresh();
     toast.success("Pengaturan toko disimpan");
   }
@@ -238,19 +240,10 @@ function SettingsPage() {
     }
     setBusy(true);
     const res = await createMember({
-      data: {
-        fullName: member.fullName.trim(),
-        email: member.email.trim(),
-        password: member.password,
-        tenantRoleId: null,
-        allowedTools: member.tools,
-      },
+      data: { fullName: member.fullName.trim(), email: member.email.trim(), password: member.password, tenantRoleId: null, allowedTools: member.tools },
     });
     setBusy(false);
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
-    }
+    if (!res.ok) { toast.error(res.error); return; }
     setMember({ fullName: "", email: "", password: "", tools: ["kasir"] });
     void qc.invalidateQueries({ queryKey: ["members", tenantId] });
     toast.success("Anggota ditambahkan");
@@ -268,163 +261,180 @@ function SettingsPage() {
 
         <TabsContent value="toko" className="mt-4 grid gap-4 lg:grid-cols-[1.1fr_320px]">
           <div className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-soft">
-          <F label="Nama toko" value={store.business_name} onChange={(v) => setStore({ ...store, business_name: v })} />
+            <F label="Nama toko" value={store.business_name} onChange={(v) => setStore({ ...store, business_name: v })} />
 
-          <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold">Pajak Penjualan</p>
-                <p className="text-[11px] text-muted-foreground">
-                  Jika aktif, kasir otomatis mencentang pajak (masih bisa dimatikan manual per transaksi).
-                </p>
-              </div>
-              <Switch
-                checked={taxOn}
-                onCheckedChange={(v) => {
-                  setTaxOn(v);
-                  if (!v) setStore((s) => ({ ...s, default_tax: "0" }));
-                  else if (Number(store.default_tax || 0) <= 0) setStore((s) => ({ ...s, default_tax: "10" }));
-                }}
-              />
-            </div>
-            {taxOn && (
-              <F label="Default pajak (%)" value={store.default_tax} onChange={(v) => setStore({ ...store, default_tax: v })} />
-            )}
-          </div>
-
-          <p className="pt-1 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Format Struk</p>
-          <F label="Judul struk" value={store.receipt_header} onChange={(v) => setStore({ ...store, receipt_header: v })} />
-          <F label="Alamat struk" value={store.receipt_address} onChange={(v) => setStore({ ...store, receipt_address: v })} />
-          <F label="Telepon struk" value={store.receipt_phone} onChange={(v) => setStore({ ...store, receipt_phone: v })} />
-          <div className="space-y-1">
-            <Label className="text-xs">Info tambahan struk</Label>
-            <Textarea
-              rows={2}
-              value={store.receipt_extra}
-              onChange={(e) => setStore({ ...store, receipt_extra: e.target.value })}
-            />
-          </div>
-          <F label="Catatan kaki struk" value={store.receipt_footer} onChange={(v) => setStore({ ...store, receipt_footer: v })} />
-
-          {/* ---- QRIS ---- */}
-          <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
-            <p className="text-sm font-semibold">Gambar QRIS Pembayaran</p>
-            <p className="text-[11px] text-muted-foreground">
-              Upload gambar QRIS toko. Kasir bisa menampilkannya saat pelanggan memilih metode QRIS.
-            </p>
-
-            {/* Area drag & drop */}
-            {isOwner && (
-              <div
-                className={`relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 transition ${
-                  qrisDragging
-                    ? "border-primary bg-primary/5"
-                    : "border-border bg-background hover:border-primary hover:bg-primary/5"
-                }`}
-                onDragOver={onDragOver}
-                onDragLeave={onDragLeave}
-                onDrop={onDrop}
-                onClick={() => qrisInputRef.current?.click()}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === "Enter" && qrisInputRef.current?.click()}
-                aria-label="Upload gambar QRIS"
-              >
-                <input
-                  ref={qrisInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) void handleQrisFile(file);
-                    e.target.value = "";
+            <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold">Pajak Penjualan</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Jika aktif, kasir otomatis mencentang pajak (masih bisa dimatikan manual per transaksi).
+                  </p>
+                </div>
+                <Switch
+                  checked={taxOn}
+                  onCheckedChange={(v) => {
+                    setTaxOn(v);
+                    if (!v) setStore((s) => ({ ...s, default_tax: "0" }));
+                    else if (Number(store.default_tax || 0) <= 0) setStore((s) => ({ ...s, default_tax: "10" }));
                   }}
                 />
-                {qrisUploading ? (
-                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                ) : (
-                  <Upload className="h-6 w-6 text-muted-foreground" />
-                )}
-                <p className="text-center text-xs text-muted-foreground">
-                  {qrisUploading
-                    ? "Mengunggah…"
-                    : "Klik atau drag & drop gambar QRIS di sini"}
-                </p>
-                <p className="text-[10px] text-muted-foreground">JPG, PNG, maks. 5 MB</p>
               </div>
-            )}
-
-            {/* URL manual + preview */}
-            <div className="flex gap-2">
-              <Input
-                value={store.receipt_qris_url}
-                onChange={(e) => setStore({ ...store, receipt_qris_url: e.target.value })}
-                placeholder="https://... (atau gunakan upload di atas)"
-                className="flex-1 text-xs"
-                disabled={!isOwner}
-              />
-              {store.receipt_qris_url && (
-                <>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    aria-label="Pratinjau QRIS"
-                    onClick={() => setQrisPreview(true)}
-                  >
-                    <ImageIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="text-destructive"
-                    aria-label="Hapus URL QRIS"
-                    onClick={() => setStore({ ...store, receipt_qris_url: "" })}
-                    disabled={!isOwner}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </>
+              {taxOn && (
+                <F label="Default pajak (%)" value={store.default_tax} onChange={(v) => setStore({ ...store, default_tax: v })} />
               )}
             </div>
+
+            <p className="pt-1 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Format Struk</p>
+            <F label="Judul struk" value={store.receipt_header} onChange={(v) => setStore({ ...store, receipt_header: v })} />
+            <F label="Alamat struk" value={store.receipt_address} onChange={(v) => setStore({ ...store, receipt_address: v })} />
+            <F label="Telepon struk" value={store.receipt_phone} onChange={(v) => setStore({ ...store, receipt_phone: v })} />
+            <div className="space-y-1">
+              <Label className="text-xs">Info tambahan struk</Label>
+              <Textarea rows={2} value={store.receipt_extra} onChange={(e) => setStore({ ...store, receipt_extra: e.target.value })} />
+            </div>
+            <F label="Catatan kaki struk" value={store.receipt_footer} onChange={(v) => setStore({ ...store, receipt_footer: v })} />
+
+            {/* ---- QRIS ---- */}
+            <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
+              <div>
+                <p className="text-sm font-semibold">Gambar QRIS Pembayaran</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Drag & drop atau klik untuk upload. Gambar langsung tersimpan dan bisa ditampilkan di kasir.
+                </p>
+              </div>
+
+              {/* Drag & drop area */}
+              {isOwner && (
+                <div
+                  className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-5 transition ${
+                    qrisDragging
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-background hover:border-primary hover:bg-primary/5"
+                  }`}
+                  onDragOver={onDragOver}
+                  onDragLeave={onDragLeave}
+                  onDrop={onDrop}
+                  onClick={() => qrisInputRef.current?.click()}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === "Enter" && qrisInputRef.current?.click()}
+                  aria-label="Upload gambar QRIS"
+                >
+                  <input
+                    ref={qrisInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void handleQrisFile(file);
+                      e.target.value = "";
+                    }}
+                  />
+                  {qrisUploading ? (
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  ) : (
+                    <Upload className="h-6 w-6 text-muted-foreground" />
+                  )}
+                  <p className="text-center text-xs text-muted-foreground">
+                    {qrisUploading ? "Menyimpan…" : "Klik atau drag & drop gambar QRIS di sini"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">JPG, PNG, maks. 10 MB</p>
+                </div>
+              )}
+
+              {/* Preview langsung di bawah area upload */}
+              {store.receipt_qris_url && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-semibold text-muted-foreground">Pratinjau QRIS</p>
+                  <div className="relative overflow-hidden rounded-xl border border-border bg-white p-3">
+                    <img
+                      src={store.receipt_qris_url}
+                      alt="QRIS"
+                      className="mx-auto max-h-56 w-auto rounded-lg object-contain"
+                    />
+                    {isOwner && (
+                      <button
+                        aria-label="Hapus gambar QRIS"
+                        onClick={async () => {
+                          if (!tenantId) return;
+                          await supabase.from("tenants").update({ receipt_qris_url: null }).eq("id", tenantId);
+                          setStore((s) => ({ ...s, receipt_qris_url: "" }));
+                          await refresh();
+                          toast.success("Gambar QRIS dihapus");
+                        }}
+                        className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white hover:bg-black/80"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Field URL manual (opsional) */}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Atau masukkan URL gambar manual</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={store.receipt_qris_url.startsWith("data:") ? "" : store.receipt_qris_url}
+                    onChange={(e) => setStore({ ...store, receipt_qris_url: e.target.value })}
+                    placeholder="https://..."
+                    className="flex-1 text-xs"
+                    disabled={!isOwner}
+                  />
+                  {store.receipt_qris_url && !store.receipt_qris_url.startsWith("data:") && (
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="outline"
+                      aria-label="Pratinjau URL"
+                      onClick={() => {
+                        // Trigger re-render untuk memuat gambar dari URL
+                        setStore((s) => ({ ...s }));
+                      }}
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <Button onClick={() => void saveStore()} disabled={!isOwner} className="w-full">
+              Simpan Pengaturan
+            </Button>
+
+            {isOwner && (
+              <div className="mt-2 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+                <p className="text-sm font-bold text-destructive">Zona Berbahaya</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Menghapus seluruh transaksi, item transaksi, dan catatan kas laci. Produk dan bahan tidak ikut terhapus.
+                </p>
+                <Button
+                  variant="destructive"
+                  className="mt-3 w-full"
+                  onClick={async () => {
+                    const ok = await dialog.confirm({
+                      title: "Hapus Seluruh Data Keuangan?",
+                      description: "Seluruh transaksi, item transaksi, dan catatan kas laci akan dihapus permanen.",
+                      confirmText: "Hapus",
+                      destructive: true,
+                    });
+                    if (!ok) return;
+                    const res = await wipeFinancialData();
+                    if (!res.ok) { toast.error(res.error); return; }
+                    void qc.invalidateQueries();
+                    toast.success("Seluruh data keuangan dihapus");
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" /> Hapus Seluruh Data Keuangan
+                </Button>
+              </div>
+            )}
           </div>
 
-          <Button onClick={() => void saveStore()} disabled={!isOwner} className="w-full">
-            Simpan Pengaturan
-          </Button>
-          {isOwner && (
-            <div className="mt-2 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
-              <p className="text-sm font-bold text-destructive">Zona Berbahaya</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Menghapus seluruh transaksi, item transaksi, dan catatan kas laci. Produk dan bahan tidak ikut terhapus.
-              </p>
-              <Button
-                variant="destructive"
-                className="mt-3 w-full"
-                onClick={async () => {
-                  const ok = await dialog.confirm({
-                    title: "Hapus Seluruh Data Keuangan?",
-                    description: "Seluruh transaksi, item transaksi, dan catatan kas laci akan dihapus permanen.",
-                    confirmText: "Hapus",
-                    destructive: true,
-                  });
-                  if (!ok) return;
-                  const res = await wipeFinancialData();
-                  if (!res.ok) {
-                    toast.error(res.error);
-                    return;
-                  }
-                  void qc.invalidateQueries();
-                  toast.success("Seluruh data keuangan dihapus");
-                }}
-              >
-                <Trash2 className="mr-2 h-4 w-4" /> Hapus Seluruh Data Keuangan
-              </Button>
-            </div>
-          )}
-          </div>
           <aside className="lg:sticky lg:top-4 lg:self-start">
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">Pratinjau Struk</p>
             <div className="rounded-2xl border border-border bg-muted/40 p-3 shadow-soft">
@@ -506,27 +516,24 @@ function SettingsPage() {
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
-                        size="icon"
-                        variant="ghost"
-                        className="text-destructive"
-                        onClick={async () => {
-                          const ok = await dialog.confirm({
-                            title: "Hapus Anggota?",
-                            description: `${m.full_name} tidak akan bisa login lagi.`,
-                            confirmText: "Hapus",
-                            destructive: true,
-                          });
-                          if (!ok) return;
-                          const res = await deleteMember({ data: { userId: m.id } });
-                          if (!res.ok) {
-                            toast.error(res.error);
-                            return;
-                          }
-                          void qc.invalidateQueries({ queryKey: ["members", tenantId] });
-                          toast.success("Anggota dihapus");
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
+                      size="icon"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={async () => {
+                        const ok = await dialog.confirm({
+                          title: "Hapus Anggota?",
+                          description: `${m.full_name} tidak akan bisa login lagi.`,
+                          confirmText: "Hapus",
+                          destructive: true,
+                        });
+                        if (!ok) return;
+                        const res = await deleteMember({ data: { userId: m.id } });
+                        if (!res.ok) { toast.error(res.error); return; }
+                        void qc.invalidateQueries({ queryKey: ["members", tenantId] });
+                        toast.success("Anggota dihapus");
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
@@ -599,10 +606,7 @@ function SettingsPage() {
                 const res = await updateMemberAccess({
                   data: { userId: editMember.id, fullName: editMember.name, allowedTools: editMember.tools },
                 });
-                if (!res.ok) {
-                  toast.error(res.error);
-                  return;
-                }
+                if (!res.ok) { toast.error(res.error); return; }
                 setEditMember(null);
                 void qc.invalidateQueries({ queryKey: ["members", tenantId] });
                 toast.success("Hak akses diperbarui");
@@ -613,37 +617,6 @@ function SettingsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Dialog pratinjau gambar QRIS */}
-      {qrisPreview && store.receipt_qris_url && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setQrisPreview(false)}
-        >
-          <div
-            className="relative max-w-sm w-full rounded-2xl bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              aria-label="Tutup pratinjau"
-              onClick={() => setQrisPreview(false)}
-              className="absolute right-3 top-3 rounded-full bg-black/10 p-1.5 hover:bg-black/20"
-            >
-              <X className="h-5 w-5 text-gray-700" />
-            </button>
-            <p className="mb-3 text-center text-sm font-bold text-gray-800">Pratinjau Gambar QRIS</p>
-            <img
-              src={store.receipt_qris_url}
-              alt="QRIS Pratinjau"
-              className="w-full rounded-xl"
-              onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src =
-                  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-size='14'%3EGambar tidak ditemukan%3C/text%3E%3C/svg%3E";
-              }}
-            />
-          </div>
-        </div>
-      )}
     </AppShell>
   );
 }
