@@ -648,17 +648,35 @@ function KasirPage() {
               {filtered.map((p) => {
                 const n = qtyInCart(p.id);
                 const hitting = hit === p.id;
+                const stock = stockOf(p);
+                const habis = stock <= 0;
+                const tipis = !habis && stock <= thresholdOf(p);
+                const stokClass = habis ? "text-destructive" : tipis ? "text-warning" : "text-muted-foreground";
                 return view === "card" ? (
                   <div
                     key={p.id}
                     role="button"
                     tabIndex={0}
+                    aria-disabled={habis}
                     onClick={() => addProduct(p)}
                     onKeyDown={(e) => e.key === "Enter" && addProduct(p)}
                     className={`relative cursor-pointer overflow-hidden rounded-2xl border bg-card p-2 text-left shadow-soft transition-transform duration-150 active:scale-95 ${
-                      hitting ? "scale-95 border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                      habis
+                        ? "border-destructive/40 opacity-60"
+                        : hitting
+                          ? "scale-95 border-primary ring-2 ring-primary/40"
+                          : "border-border hover:border-primary"
                     }`}
                   >
+                    {(habis || tipis) && (
+                      <span
+                        className={`absolute left-1.5 top-1.5 z-10 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                          habis ? "bg-destructive text-destructive-foreground" : "bg-warning text-warning-foreground"
+                        }`}
+                      >
+                        {habis ? "Habis" : `Sisa ${num(stock)}`}
+                      </span>
+                    )}
                     {n > 0 && (
                       <span className="num absolute right-1.5 top-1.5 z-10 grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black text-primary-foreground shadow-brand">
                         {num(n)}
@@ -667,7 +685,7 @@ function KasirPage() {
                     <ProductImage path={p.image_url} alt={p.name} className="mb-1.5 h-16 w-full" />
                     <p className="line-clamp-2 text-[12px] font-semibold leading-tight">{p.name}</p>
                     <p className="num mt-0.5 text-[12px] font-bold text-primary">{rupiah(Number(p.price))}</p>
-                    <p className="num text-[10px] text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                    <p className={`num text-[10px] font-semibold ${stokClass}`}>Stok {num(stock)}</p>
                     {n > 0 && (
                       <div
                         className="mt-1.5 flex items-center justify-between rounded-lg bg-muted p-0.5"
