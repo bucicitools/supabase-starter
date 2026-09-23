@@ -161,7 +161,25 @@ function KasirPage() {
   const paidNum = parseNum(paid);
   const change = Math.max(0, paidNum - total);
 
+  function stockOf(p: (typeof products)[number]) {
+    return Number(p.stock ?? 0);
+  }
+  function thresholdOf(p: (typeof products)[number]) {
+    const t = Number((p as { low_stock_threshold?: number }).low_stock_threshold ?? 5);
+    return Number.isFinite(t) && t > 0 ? t : 5;
+  }
+
   function addProduct(p: (typeof products)[number]) {
+    const stock = stockOf(p);
+    if (stock <= 0) {
+      toast.error(`${p.name} stoknya habis`, { description: "Isi ulang stok di menu Stok dulu." });
+      return;
+    }
+    const inCart = cart.find((l) => l.productId === p.id)?.qty ?? 0;
+    if (inCart + 1 > stock) {
+      toast.warning(`Stok ${p.name} tinggal ${num(stock)}`, { description: "Jumlah di keranjang sudah maksimal." });
+      return;
+    }
     setHit(p.id);
     if (hitTimer.current) clearTimeout(hitTimer.current);
     hitTimer.current = setTimeout(() => setHit(null), 260);
@@ -182,6 +200,12 @@ function KasirPage() {
   }
 
   function bumpProduct(p: (typeof products)[number], delta: number) {
+    const stock = stockOf(p);
+    const inCart = cart.find((l) => l.productId === p.id)?.qty ?? 0;
+    if (delta > 0 && inCart + delta > stock) {
+      toast.warning(`Stok ${p.name} tinggal ${num(stock)}`, { description: "Jumlah di keranjang sudah maksimal." });
+      return;
+    }
     setCart((c) => {
       const i = c.findIndex((l) => l.productId === p.id);
       if (i < 0) {
