@@ -84,6 +84,11 @@ function DashboardPage() {
           .eq("tenant_id", tenant!.id)
           .eq("status", "paid"),
       ]);
+      const { data: voidTxs } = await supabase
+        .from("transactions")
+        .select("total,paid_amount,payment_method,paid_at,created_at,updated_at")
+        .eq("tenant_id", tenant!.id)
+        .eq("status", "void");
       if (!txs && cached) return cached;
       // Omzet = seluruh transaksi hari ini yang tidak dibatalkan (lunas + bayar nanti/piutang).
       const sah = (txs ?? []).filter((t) => t.status !== "void");
