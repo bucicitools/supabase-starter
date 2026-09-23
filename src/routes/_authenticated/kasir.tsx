@@ -413,9 +413,23 @@ function KasirPage() {
         .reduce((s, t) => s + Number(t.paid_amount || t.total), 0),
     [history, lastReset],
   );
+  // Transaksi tunai LAMA (sebelum reset laci) yang dibatalkan SETELAH reset:
+  // uangnya dikembalikan dari laci hari ini, jadi saldo laci harus berkurang.
+  const voidCashRefund = useMemo(() => {
+    if (!lastReset) return 0;
+    return history
+      .filter(
+        (t) =>
+          t.status === "void" &&
+          (t.payment_method ?? "CASH").toUpperCase() === "CASH" &&
+          (t.paid_at ?? t.created_at) < lastReset &&
+          String(t.updated_at ?? "") >= lastReset,
+      )
+      .reduce((s, t) => s + Number(t.paid_amount || t.total), 0);
+  }, [history, lastReset]);
   const kasIn = cashScoped.filter((c) => c.type !== "out").reduce((s, c) => s + Number(c.amount), 0);
   const kasOut = cashScoped.filter((c) => c.type === "out").reduce((s, c) => s + Number(c.amount), 0);
-  const saldoLaci = kasIn + cashSales - kasOut;
+  const saldoLaci = kasIn + cashSales - kasOut - voidCashRefund;
 
   const [kasType, setKasType] = useState<"fill" | "in" | "out">("fill");
   const [kasAmount, setKasAmount] = useState("");
