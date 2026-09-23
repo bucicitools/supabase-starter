@@ -95,6 +95,46 @@ function AdminPage() {
     },
   });
 
+  const { data: health, isFetching: healthLoading } = useQuery({
+    queryKey: ["backend_health"],
+    enabled: role === "super_admin",
+    queryFn: async () => {
+      const count = async (t: TableName, apply?: (q: ReturnType<typeof countQuery>) => unknown) => {
+        const base = supabase.from(t).select("*", { count: "exact", head: true });
+        const q = apply ? (apply(base as never) as typeof base) : base;
+        const { count: c, error } = await q;
+        if (error) throw error;
+        return c ?? 0;
+      };
+      const countQuery = () => supabase.from("tenants").select("*", { count: "exact", head: true });
+      const [tenantAll, tenantActive, lisAll, lisFree, prod, trx, prof, stok] = await Promise.all([
+        count("tenants"),
+        count("tenants", (q) => (q as ReturnType<typeof countQuery>).eq("is_active", true)),
+        count("licenses"),
+        count("licenses", (q) => (q as ReturnType<typeof countQuery>).is("used_by", null)),
+        count("products"),
+        count("transactions"),
+        count("profiles"),
+        count("stock_items"),
+      ]);
+      return { tenantAll, tenantActive, lisAll, lisFree, prod, trx, prof, stok, at: new Date().toISOString() };
+    },
+  });
+
+  const { data: rows = [], isFetching: rowsLoading } = useQuery({
+    queryKey: ["backend_rows", table],
+    enabled: role === "super_admin",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from(table)
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(25);
+      if (error) throw error;
+      return (data ?? []) as Record<string, unknown>[];
+    },
+  });
+
   if (role !== "super_admin") {
     return (
       <AppShell title="Panel Super Admin">
