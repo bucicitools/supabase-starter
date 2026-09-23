@@ -360,7 +360,10 @@ function KasirPage() {
         .update({ stock: Number(p.stock ?? 0) + Number(it.qty) })
         .eq("id", it.product_id);
     }
-    await supabase.from("transactions").update({ status: "void", void_note: reason }).eq("id", id);
+    await supabase
+      .from("transactions")
+      .update({ status: "void", void_note: reason, updated_at: new Date().toISOString() })
+      .eq("id", id);
     void qc.invalidateQueries();
     toast.success("Transaksi dibatalkan", { description: "Stok seluruh item dikembalikan." });
   }
