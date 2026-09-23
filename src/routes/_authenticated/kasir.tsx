@@ -714,16 +714,32 @@ function KasirPage() {
                     key={p.id}
                     role="button"
                     tabIndex={0}
+                    aria-disabled={habis}
                     onClick={() => addProduct(p)}
                     onKeyDown={(e) => e.key === "Enter" && addProduct(p)}
                     className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card px-3 py-2.5 text-left shadow-soft transition-transform duration-150 active:scale-[0.98] ${
-                      hitting ? "scale-[0.98] border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                      habis
+                        ? "border-destructive/40 opacity-60"
+                        : hitting
+                          ? "scale-[0.98] border-primary ring-2 ring-primary/40"
+                          : "border-border hover:border-primary"
                     }`}
                   >
                     <ProductImage path={p.image_url} alt={p.name} className="h-10 w-10 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{p.name}</p>
-                      <p className="num text-xs text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-semibold">{p.name}</p>
+                        {(habis || tipis) && (
+                          <span
+                            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                              habis ? "bg-destructive text-destructive-foreground" : "bg-warning text-warning-foreground"
+                            }`}
+                          >
+                            {habis ? "Habis" : "Tipis"}
+                          </span>
+                        )}
+                      </div>
+                      <p className={`num text-xs font-semibold ${stokClass}`}>Stok {num(stock)}</p>
                     </div>
                     <span className="num text-sm font-bold text-primary">{rupiah(Number(p.price))}</span>
                     {n > 0 && (
