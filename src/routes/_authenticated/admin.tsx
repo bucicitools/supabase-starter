@@ -37,6 +37,20 @@ const FEATURES = [
   { key: "info", label: "Info" },
 ];
 
+const TABLES = [
+  { key: "tenants", label: "Toko (tenants)" },
+  { key: "profiles", label: "Pengguna (profiles)" },
+  { key: "transactions", label: "Transaksi" },
+  { key: "transaction_items", label: "Item Transaksi" },
+  { key: "products", label: "Produk Jual" },
+  { key: "stock_items", label: "Stok Bahan & Alat" },
+  { key: "cash_entries", label: "Kas Laci" },
+  { key: "hpp_recipes", label: "Resep HPP" },
+  { key: "licenses", label: "Lisensi" },
+  { key: "info_posts", label: "Info" },
+] as const;
+type TableName = (typeof TABLES)[number]["key"];
+
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
@@ -92,6 +106,50 @@ function AdminPage() {
         .order("is_pinned", { ascending: false })
         .order("created_at", { ascending: false });
       return data ?? [];
+    },
+  });
+
+  const { data: health, isFetching: healthLoading } = useQuery({
+    queryKey: ["backend_health"],
+    enabled: role === "super_admin",
+    queryFn: async () => {
+      const head = { count: "exact" as const, head: true };
+      const [tenantAll, tenantActive, lisAll, lisFree, prod, trx, prof, stok] = await Promise.all([
+        supabase.from("tenants").select("*", head),
+        supabase.from("tenants").select("*", head).eq("is_active", true),
+        supabase.from("licenses").select("*", head),
+        supabase.from("licenses").select("*", head).is("used_by", null),
+        supabase.from("products").select("*", head),
+        supabase.from("transactions").select("*", head),
+        supabase.from("profiles").select("*", head),
+        supabase.from("stock_items").select("*", head),
+      ]);
+      return {
+        tenantAll: tenantAll.count ?? 0,
+        tenantActive: tenantActive.count ?? 0,
+        lisAll: lisAll.count ?? 0,
+        lisFree: lisFree.count ?? 0,
+        prod: prod.count ?? 0,
+        trx: trx.count ?? 0,
+        prof: prof.count ?? 0,
+        stok: stok.count ?? 0,
+        error: [tenantAll, lisAll, prod, trx, prof, stok].find((r) => r.error)?.error?.message ?? null,
+        at: new Date().toISOString(),
+      };
+    },
+  });
+
+  const { data: rows = [], isFetching: rowsLoading } = useQuery({
+    queryKey: ["backend_rows", table],
+    enabled: role === "super_admin",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from(table)
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(25);
+      if (error) throw error;
+      return (data ?? []) as Record<string, unknown>[];
     },
   });
 

@@ -161,7 +161,25 @@ function KasirPage() {
   const paidNum = parseNum(paid);
   const change = Math.max(0, paidNum - total);
 
+  function stockOf(p: (typeof products)[number]) {
+    return Number(p.stock ?? 0);
+  }
+  function thresholdOf(p: (typeof products)[number]) {
+    const t = Number((p as { low_stock_threshold?: number }).low_stock_threshold ?? 5);
+    return Number.isFinite(t) && t > 0 ? t : 5;
+  }
+
   function addProduct(p: (typeof products)[number]) {
+    const stock = stockOf(p);
+    if (stock <= 0) {
+      toast.error(`${p.name} stoknya habis`, { description: "Isi ulang stok di menu Stok dulu." });
+      return;
+    }
+    const inCart = cart.find((l) => l.productId === p.id)?.qty ?? 0;
+    if (inCart + 1 > stock) {
+      toast.warning(`Stok ${p.name} tinggal ${num(stock)}`, { description: "Jumlah di keranjang sudah maksimal." });
+      return;
+    }
     setHit(p.id);
     if (hitTimer.current) clearTimeout(hitTimer.current);
     hitTimer.current = setTimeout(() => setHit(null), 260);
@@ -182,6 +200,12 @@ function KasirPage() {
   }
 
   function bumpProduct(p: (typeof products)[number], delta: number) {
+    const stock = stockOf(p);
+    const inCart = cart.find((l) => l.productId === p.id)?.qty ?? 0;
+    if (delta > 0 && inCart + delta > stock) {
+      toast.warning(`Stok ${p.name} tinggal ${num(stock)}`, { description: "Jumlah di keranjang sudah maksimal." });
+      return;
+    }
     setCart((c) => {
       const i = c.findIndex((l) => l.productId === p.id);
       if (i < 0) {
@@ -624,17 +648,35 @@ function KasirPage() {
               {filtered.map((p) => {
                 const n = qtyInCart(p.id);
                 const hitting = hit === p.id;
+                const stock = stockOf(p);
+                const habis = stock <= 0;
+                const tipis = !habis && stock <= thresholdOf(p);
+                const stokClass = habis ? "text-destructive" : tipis ? "text-warning" : "text-muted-foreground";
                 return view === "card" ? (
                   <div
                     key={p.id}
                     role="button"
                     tabIndex={0}
+                    aria-disabled={habis}
                     onClick={() => addProduct(p)}
                     onKeyDown={(e) => e.key === "Enter" && addProduct(p)}
                     className={`relative cursor-pointer overflow-hidden rounded-2xl border bg-card p-2 text-left shadow-soft transition-transform duration-150 active:scale-95 ${
-                      hitting ? "scale-95 border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                      habis
+                        ? "border-destructive/40 opacity-60"
+                        : hitting
+                          ? "scale-95 border-primary ring-2 ring-primary/40"
+                          : "border-border hover:border-primary"
                     }`}
                   >
+                    {(habis || tipis) && (
+                      <span
+                        className={`absolute left-1.5 top-1.5 z-10 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+                          habis ? "bg-destructive text-destructive-foreground" : "bg-warning text-warning-foreground"
+                        }`}
+                      >
+                        {habis ? "Habis" : `Sisa ${num(stock)}`}
+                      </span>
+                    )}
                     {n > 0 && (
                       <span className="num absolute right-1.5 top-1.5 z-10 grid h-6 min-w-6 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-black text-primary-foreground shadow-brand">
                         {num(n)}
@@ -643,7 +685,7 @@ function KasirPage() {
                     <ProductImage path={p.image_url} alt={p.name} className="mb-1.5 h-16 w-full" />
                     <p className="line-clamp-2 text-[12px] font-semibold leading-tight">{p.name}</p>
                     <p className="num mt-0.5 text-[12px] font-bold text-primary">{rupiah(Number(p.price))}</p>
-                    <p className="num text-[10px] text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                    <p className={`num text-[10px] font-semibold ${stokClass}`}>Stok {num(stock)}</p>
                     {n > 0 && (
                       <div
                         className="mt-1.5 flex items-center justify-between rounded-lg bg-muted p-0.5"
@@ -672,16 +714,32 @@ function KasirPage() {
                     key={p.id}
                     role="button"
                     tabIndex={0}
+                    aria-disabled={habis}
                     onClick={() => addProduct(p)}
                     onKeyDown={(e) => e.key === "Enter" && addProduct(p)}
                     className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border bg-card px-3 py-2.5 text-left shadow-soft transition-transform duration-150 active:scale-[0.98] ${
-                      hitting ? "scale-[0.98] border-primary ring-2 ring-primary/40" : "border-border hover:border-primary"
+                      habis
+                        ? "border-destructive/40 opacity-60"
+                        : hitting
+                          ? "scale-[0.98] border-primary ring-2 ring-primary/40"
+                          : "border-border hover:border-primary"
                     }`}
                   >
                     <ProductImage path={p.image_url} alt={p.name} className="h-10 w-10 shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{p.name}</p>
-                      <p className="num text-xs text-muted-foreground">Stok {num(Number(p.stock ?? 0))}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate text-sm font-semibold">{p.name}</p>
+                        {(habis || tipis) && (
+                          <span
+                            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                              habis ? "bg-destructive text-destructive-foreground" : "bg-warning text-warning-foreground"
+                            }`}
+                          >
+                            {habis ? "Habis" : "Tipis"}
+                          </span>
+                        )}
+                      </div>
+                      <p className={`num text-xs font-semibold ${stokClass}`}>Stok {num(stock)}</p>
                     </div>
                     <span className="num text-sm font-bold text-primary">{rupiah(Number(p.price))}</span>
                     {n > 0 && (
