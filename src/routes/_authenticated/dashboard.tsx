@@ -84,6 +84,11 @@ function DashboardPage() {
           .eq("tenant_id", tenant!.id)
           .eq("status", "paid"),
       ]);
+      const { data: voidTxs } = await supabase
+        .from("transactions")
+        .select("total,paid_amount,payment_method,paid_at,created_at,updated_at")
+        .eq("tenant_id", tenant!.id)
+        .eq("status", "void");
       if (!txs && cached) return cached;
       // Omzet = seluruh transaksi hari ini yang tidak dibatalkan (lunas + bayar nanti/piutang).
       const sah = (txs ?? []).filter((t) => t.status !== "void");
@@ -108,6 +113,17 @@ function DashboardPage() {
             (since ? (t.paid_at ?? t.created_at) >= since : true),
         )
         .reduce((a, t) => a + Number(t.paid_amount || t.total), 0);
+      // Transaksi tunai sebelum reset laci yang dibatalkan setelah reset: uangnya keluar dari laci saat ini.
+      const refundVoidTunai = !since
+        ? 0
+        : (voidTxs ?? [])
+            .filter(
+              (t) =>
+                (t.payment_method ?? "CASH").toUpperCase() === "CASH" &&
+                (t.paid_at ?? t.created_at) < since &&
+                String(t.updated_at ?? "") >= since,
+            )
+            .reduce((a, t) => a + Number(t.paid_amount || t.total), 0);
       const best = Object.entries(
         (items ?? []).reduce<Record<string, number>>((acc, i) => {
           acc[i.name] = (acc[i.name] ?? 0) + Number(i.qty);
@@ -125,7 +141,7 @@ function DashboardPage() {
         tunai: byMethod("CASH"),
         qris: byMethod("QRIS"),
         transfer: byMethod("TRANSFER"),
-        laci: laciMasuk + penjualanTunaiLaci - laciKeluar,
+        laci: laciMasuk + penjualanTunaiLaci - laciKeluar - refundVoidTunai,
         trx: sah.length,
         void: (txs ?? []).filter((t) => t.status === "void").length,
         best: best?.[0] ?? "—",

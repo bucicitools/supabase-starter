@@ -360,7 +360,10 @@ function KasirPage() {
         .update({ stock: Number(p.stock ?? 0) + Number(it.qty) })
         .eq("id", it.product_id);
     }
-    await supabase.from("transactions").update({ status: "void", void_note: reason }).eq("id", id);
+    await supabase
+      .from("transactions")
+      .update({ status: "void", void_note: reason, updated_at: new Date().toISOString() })
+      .eq("id", id);
     void qc.invalidateQueries();
     toast.success("Transaksi dibatalkan", { description: "Stok seluruh item dikembalikan." });
   }
@@ -410,9 +413,23 @@ function KasirPage() {
         .reduce((s, t) => s + Number(t.paid_amount || t.total), 0),
     [history, lastReset],
   );
+  // Transaksi tunai LAMA (sebelum reset laci) yang dibatalkan SETELAH reset:
+  // uangnya dikembalikan dari laci hari ini, jadi saldo laci harus berkurang.
+  const voidCashRefund = useMemo(() => {
+    if (!lastReset) return 0;
+    return history
+      .filter(
+        (t) =>
+          t.status === "void" &&
+          (t.payment_method ?? "CASH").toUpperCase() === "CASH" &&
+          (t.paid_at ?? t.created_at) < lastReset &&
+          String(t.updated_at ?? "") >= lastReset,
+      )
+      .reduce((s, t) => s + Number(t.paid_amount || t.total), 0);
+  }, [history, lastReset]);
   const kasIn = cashScoped.filter((c) => c.type !== "out").reduce((s, c) => s + Number(c.amount), 0);
   const kasOut = cashScoped.filter((c) => c.type === "out").reduce((s, c) => s + Number(c.amount), 0);
-  const saldoLaci = kasIn + cashSales - kasOut;
+  const saldoLaci = kasIn + cashSales - kasOut - voidCashRefund;
 
   const [kasType, setKasType] = useState<"fill" | "in" | "out">("fill");
   const [kasAmount, setKasAmount] = useState("");
@@ -1257,21 +1274,51 @@ function KasirPage() {
             )}
           </div>
 
-          {soldQty.length > 0 && (
-            <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-              <p className="mb-3 font-bold">Menu Terjual</p>
-              <div className="space-y-2">
-                {soldQty.map(([name, v]) => (
-                  <div key={name} className="flex items-center justify-between text-sm">
-                    <span className="min-w-0 flex-1 truncate">{name}</span>
-                    <span className="ml-2 shrink-0 font-semibold">
-                      {num(v.qty)}× · {rupiah(v.total)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="font-bold">Rincian Menu Terjual</p>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={soldQty.length === 0}
+                onClick={() =>
+                  downloadCSV(
+                    "menu-terjual-bucici.csv",
+                    soldQty.map(([name, v]) => ({ menu: name, qty: v.qty, omzet: v.total })),
+                  )
+                }
+              >
+                <Download className="mr-2 h-4 w-4" /> CSV
+              </Button>
             </div>
-          )}
+            {soldQty.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada menu terjual pada periode ini.</p>
+            ) : (
+              <div className="x-scroll">
+                <table className="w-full min-w-[420px] text-sm">
+                  <thead>
+                    <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                      <th className="py-1.5">Menu</th>
+                      <th className="py-1.5 text-right">Qty</th>
+                      <th className="py-1.5 text-right">Omzet</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {soldQty.map(([name, v]) => (
+                      <tr key={name} className="border-t border-border/60">
+                        <td className="py-1.5 pr-2">{name}</td>
+                        <td className="num py-1.5 text-right font-semibold">{num(v.qty)}×</td>
+                        <td className="num py-1.5 text-right">{rupiah(v.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-3 border-t border-border/60 pt-2 text-right text-sm font-bold">
+                  Total item terjual: {num(soldQty.reduce((s, [, v]) => s + v.qty, 0))}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
