@@ -37,6 +37,20 @@ const FEATURES = [
   { key: "info", label: "Info" },
 ];
 
+const TABLES = [
+  { key: "tenants", label: "Toko (tenants)" },
+  { key: "profiles", label: "Pengguna (profiles)" },
+  { key: "transactions", label: "Transaksi" },
+  { key: "transaction_items", label: "Item Transaksi" },
+  { key: "products", label: "Produk Jual" },
+  { key: "stock_items", label: "Stok Bahan & Alat" },
+  { key: "cash_entries", label: "Kas Laci" },
+  { key: "hpp_recipes", label: "Resep HPP" },
+  { key: "licenses", label: "Lisensi" },
+  { key: "info_posts", label: "Info" },
+] as const;
+type TableName = (typeof TABLES)[number]["key"];
+
 function randomCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let s = "";
