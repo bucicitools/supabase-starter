@@ -141,7 +141,7 @@ function DashboardPage() {
         tunai: byMethod("CASH"),
         qris: byMethod("QRIS"),
         transfer: byMethod("TRANSFER"),
-        laci: laciMasuk + penjualanTunaiLaci - laciKeluar,
+        laci: laciMasuk + penjualanTunaiLaci - laciKeluar - refundVoidTunai,
         trx: sah.length,
         void: (txs ?? []).filter((t) => t.status === "void").length,
         best: best?.[0] ?? "—",
