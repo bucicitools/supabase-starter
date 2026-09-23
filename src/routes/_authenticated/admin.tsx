@@ -99,25 +99,29 @@ function AdminPage() {
     queryKey: ["backend_health"],
     enabled: role === "super_admin",
     queryFn: async () => {
-      const count = async (t: TableName, apply?: (q: ReturnType<typeof countQuery>) => unknown) => {
-        const base = supabase.from(t).select("*", { count: "exact", head: true });
-        const q = apply ? (apply(base as never) as typeof base) : base;
-        const { count: c, error } = await q;
-        if (error) throw error;
-        return c ?? 0;
-      };
-      const countQuery = () => supabase.from("tenants").select("*", { count: "exact", head: true });
+      const head = { count: "exact" as const, head: true };
       const [tenantAll, tenantActive, lisAll, lisFree, prod, trx, prof, stok] = await Promise.all([
-        count("tenants"),
-        count("tenants", (q) => (q as ReturnType<typeof countQuery>).eq("is_active", true)),
-        count("licenses"),
-        count("licenses", (q) => (q as ReturnType<typeof countQuery>).is("used_by", null)),
-        count("products"),
-        count("transactions"),
-        count("profiles"),
-        count("stock_items"),
+        supabase.from("tenants").select("*", head),
+        supabase.from("tenants").select("*", head).eq("is_active", true),
+        supabase.from("licenses").select("*", head),
+        supabase.from("licenses").select("*", head).is("used_by", null),
+        supabase.from("products").select("*", head),
+        supabase.from("transactions").select("*", head),
+        supabase.from("profiles").select("*", head),
+        supabase.from("stock_items").select("*", head),
       ]);
-      return { tenantAll, tenantActive, lisAll, lisFree, prod, trx, prof, stok, at: new Date().toISOString() };
+      return {
+        tenantAll: tenantAll.count ?? 0,
+        tenantActive: tenantActive.count ?? 0,
+        lisAll: lisAll.count ?? 0,
+        lisFree: lisFree.count ?? 0,
+        prod: prod.count ?? 0,
+        trx: trx.count ?? 0,
+        prof: prof.count ?? 0,
+        stok: stok.count ?? 0,
+        error: [tenantAll, lisAll, prod, trx, prof, stok].find((r) => r.error)?.error?.message ?? null,
+        at: new Date().toISOString(),
+      };
     },
   });
 
